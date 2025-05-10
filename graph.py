@@ -167,7 +167,7 @@ def story_start(state: State):
 def question_1(state: State):
     #print("\n=== NODE 3 ===")
     #print(f"Input state: {state}")
-    user_answer = input("Quale risposta scegli? (a, b, o c): ").lower()
+    user_answer = state["user_answer"].lower()
     print(f"User answer: {user_answer}")
     
     if user_answer == state["correct_answer"]:
