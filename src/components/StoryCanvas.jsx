@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import React from 'react';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -281,10 +284,16 @@ function StoryCanvas({ scene, onChoice }) {
               {/* Principle Summary */}
               {currentScene.principleSummary && (
                 <div className="w-full max-w-2xl bg-yellow-100/20 rounded-xl p-6 border-2 border-yellow-300 mt-8">
-                  <h3 className="text-xl font-bold text-yellow-300 mb-2 text-center">Main Mathematical Principle</h3>
-                  <div className="text-lg text-yellow-100 text-center">
+                  <h3 className="text-xl font-bold text-yellow-300 mb-2 text-center">
+                    Main Mathematical Principle
+                  </h3>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    className="prose prose-invert prose-p:text-yellow-100 prose-strong:text-yellow-300 mx-auto text-center"
+                  >
                     {currentScene.principleSummary}
-                  </div>
+                  </ReactMarkdown>
                 </div>
               )}
 
