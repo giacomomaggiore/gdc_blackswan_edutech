@@ -14,7 +14,7 @@ GOOGLE_API_KEY = "AIzaSyC1bXxZ4447S7p3RfupwWPjLVEIuLR3Vtg"
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # List available models
-print("Available models:")
+print("Modelli disponibili:")
 for m in genai.list_models():
     if 'generateContent' in m.supported_generation_methods:
         print(f"- {m.name}")
@@ -25,13 +25,17 @@ class State(TypedDict):
     story_context: str
     character: str
     story: str
+    current_chapter: int
     questions: list
     user_answer: str
     feedback: str
+    story_continuation: str
+    is_correct: bool
+    is_partially_correct: bool
 
 # Initialize the Gemini model
 llm = ChatGoogleGenerativeAI(
-    model="models/gemini-2.0-flash",  # Updated model name with full path
+    model="models/gemini-2.0-flash",
     temperature=0.7,
     google_api_key=GOOGLE_API_KEY,
     max_output_tokens=2048,
@@ -41,48 +45,88 @@ llm = ChatGoogleGenerativeAI(
 
 # Create prompt templates for different stages
 story_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are a creative storyteller and educator. Create an engaging story that:
-    1. Takes place in the given context
-    2. Features the chosen character as the protagonist
-    3. Incorporates the mathematical concept naturally into the narrative
-    4. Makes the character face challenges related to the math topic
-    Keep the story engaging and educational."""),
-    ("user", """Create a story with these elements:
-    Math Topic: {math_topic}
-    Story Context: {story_context}
-    Character: {character}""")
+    ("system", """Sei un narratore creativo ed educatore. Crea una storia coinvolgente che:
+    1. Si svolga nel contesto dato
+    2. Abbia come protagonista il personaggio scelto
+    3. Incorpori naturalmente il concetto matematico nella narrazione
+    4. Crei una narrazione ramificata che può cambiare in base alle decisioni del personaggio
+    5. Termini con un cliffhanger che porta a una sfida matematica
+    Mantieni la storia coinvolgente ed educativa, facendo sentire il lettore come se fosse il personaggio.
+    Scrivi la storia in italiano."""),
+    ("user", """Crea una storia con questi elementi:
+    Argomento Matematico: {math_topic}
+    Contesto della Storia: {story_context}
+    Personaggio: {character}""")
 ])
 
 questions_prompt = ChatPromptTemplate.from_messages([
-    ("system", """Create 3 interactive questions that:
-    1. Are directly related to the story
-    2. Test understanding of the mathematical concept
-    3. Are engaging and contextual
-    Format each question exactly like this:
-    Question 1: [question text]
-    Answer 1: [answer text]
+    ("system", """Crea 3 domande interattive che:
+    1. Siano direttamente collegate alla storia
+    2. Verifichino la comprensione del concetto matematico
+    3. Siano coinvolgenti e contestuali
+    4. Facciano pensare il lettore come se fosse il personaggio
+    5. Abbiano conseguenze chiare per diversi tipi di risposte
+    Formatta ogni domanda esattamente così:
+    Domanda 1: [testo della domanda che fa pensare il lettore come il personaggio]
+    Risposta 1: [testo della risposta]
+    Conseguenze:
+    - Corretta: [cosa succede se la risposta è corretta]
+    - Parziale: [cosa succede se la risposta è parzialmente corretta]
+    - Sbagliata: [cosa succede se la risposta è sbagliata]
     
-    Question 2: [question text]
-    Answer 2: [answer text]
+    Domanda 2: [testo della domanda che fa pensare il lettore come il personaggio]
+    Risposta 2: [testo della risposta]
+    Conseguenze:
+    - Corretta: [cosa succede se la risposta è corretta]
+    - Parziale: [cosa succede se la risposta è parzialmente corretta]
+    - Sbagliata: [cosa succede se la risposta è sbagliata]
     
-    Question 3: [question text]
-    Answer 3: [answer text]"""),
-    ("user", """Create questions based on:
-    Story: {story}
-    Math Topic: {math_topic}""")
+    Domanda 3: [testo della domanda che fa pensare il lettore come il personaggio]
+    Risposta 3: [testo della risposta]
+    Conseguenze:
+    - Corretta: [cosa succede se la risposta è corretta]
+    - Parziale: [cosa succede se la risposta è parzialmente corretta]
+    - Sbagliata: [cosa succede se la risposta è sbagliata]
+    Scrivi tutto in italiano."""),
+    ("user", """Crea domande basate su:
+    Storia: {story}
+    Argomento Matematico: {math_topic}
+    Personaggio: {character}""")
+])
+
+continuation_prompt = ChatPromptTemplate.from_messages([
+    ("system", """Sei un narratore creativo. Continua la storia in base alla risposta del personaggio:
+    1. Se la risposta è corretta, continua con il miglior esito possibile
+    2. Se la risposta è parzialmente corretta, prendi un percorso diverso ma comunque positivo
+    3. Se la risposta è sbagliata, crea una situazione sfidante che il personaggio deve superare
+    Mantieni la storia coinvolgente e la personalità del personaggio.
+    Scrivi la continuazione in italiano."""),
+    ("user", """Continua la storia basandoti su:
+    Storia Precedente: {story}
+    Domanda: {question}
+    Risposta del Personaggio: {user_answer}
+    Risposta Corretta: {correct_answer}
+    È Corretta: {is_correct}
+    È Parzialmente Corretta: {is_partially_correct}
+    Personaggio: {character}
+    Argomento Matematico: {math_topic}""")
 ])
 
 feedback_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are a helpful math tutor. Provide feedback that:
-    1. Evaluates the answer's correctness
-    2. Explains the mathematical concept if needed
-    3. Encourages further learning
-    Be supportive and educational."""),
-    ("user", """Provide feedback for:
-    Question: {question}
-    Correct Answer: {correct_answer}
-    User's Answer: {user_answer}
-    Math Topic: {math_topic}""")
+    ("system", """Sei un tutor di matematica e guida al roleplay. Fornisci un feedback che:
+    1. Valuti la correttezza della risposta
+    2. Spieghi il concetto matematico se necessario
+    3. Incoraggi ulteriori apprendimenti
+    4. Mantenga la prospettiva del personaggio
+    5. Suggerisca come il personaggio avrebbe potuto approcciare il problema
+    Sii incoraggiante ed educativo mantenendo il roleplay coinvolgente.
+    Scrivi il feedback in italiano."""),
+    ("user", """Fornisci feedback per:
+    Domanda: {question}
+    Risposta Corretta: {correct_answer}
+    Risposta dell'Utente: {user_answer}
+    Argomento Matematico: {math_topic}
+    Personaggio: {character}""")
 ])
 
 # Define the node functions
@@ -93,63 +137,119 @@ def create_story(state: State) -> State:
         "story_context": state["story_context"],
         "character": state["character"]
     })
-    return {**state, "story": story}
+    return {**state, "story": story, "current_chapter": 1}
 
 def generate_questions(state: State) -> State:
     chain = questions_prompt | llm | StrOutputParser()
     questions_text = chain.invoke({
         "story": state["story"],
-        "math_topic": state["math_topic"]
+        "math_topic": state["math_topic"],
+        "character": state["character"]
     })
     
     # Parse questions into a list of dictionaries
     questions = []
     current_question = None
     current_answer = None
+    current_consequences = {"correct": "", "partial": "", "wrong": ""}
     
     for line in questions_text.split('\n'):
         line = line.strip()
         if not line:
             continue
             
-        if line.startswith('Question'):
+        if line.startswith('Domanda'):
             if current_question and current_answer:
                 questions.append({
                     "question": current_question,
-                    "answer": current_answer
+                    "answer": current_answer,
+                    "consequences": current_consequences
                 })
             current_question = line.split(':', 1)[1].strip()
-        elif line.startswith('Answer'):
+            current_consequences = {"correct": "", "partial": "", "wrong": ""}
+        elif line.startswith('Risposta'):
             current_answer = line.split(':', 1)[1].strip()
+        elif line.startswith('- Corretta:'):
+            current_consequences["correct"] = line.split(':', 1)[1].strip()
+        elif line.startswith('- Parziale:'):
+            current_consequences["partial"] = line.split(':', 1)[1].strip()
+        elif line.startswith('- Sbagliata:'):
+            current_consequences["wrong"] = line.split(':', 1)[1].strip()
     
     # Add the last question if exists
     if current_question and current_answer:
         questions.append({
             "question": current_question,
-            "answer": current_answer
+            "answer": current_answer,
+            "consequences": current_consequences
         })
     
     # Ensure we have at least one question
     if not questions:
         questions = [{
-            "question": "What is the main mathematical concept in the story?",
-            "answer": "The main mathematical concept is " + state["math_topic"]
+            "question": f"Come {state['character']}, come risolveresti questo problema matematico?",
+            "answer": "La soluzione coinvolge " + state["math_topic"],
+            "consequences": {
+                "correct": "Risolvi con successo il problema e continui il tuo viaggio.",
+                "partial": "Fai alcuni progressi ma affronti nuove sfide.",
+                "wrong": "Incontri un ostacolo che richiede un approccio diverso."
+            }
         }]
     
     return {**state, "questions": questions}
 
 def get_user_answer(state: State) -> State:
     if not state["questions"]:
-        print("Error: No questions generated. Using default question.")
+        print("Errore: Nessuna domanda generata. Uso domanda predefinita.")
         state["questions"] = [{
-            "question": "What is the main mathematical concept in the story?",
-            "answer": "The main mathematical concept is " + state["math_topic"]
+            "question": f"Come {state['character']}, come risolveresti questo problema matematico?",
+            "answer": "La soluzione coinvolge " + state["math_topic"],
+            "consequences": {
+                "correct": "Risolvi con successo il problema e continui il tuo viaggio.",
+                "partial": "Fai alcuni progressi ma affronti nuove sfide.",
+                "wrong": "Incontri un ostacolo che richiede un approccio diverso."
+            }
         }]
     
-    print("\nStory:", state["story"])
-    print("\nQuestion:", state["questions"][0]["question"])
-    user_answer = input("Your answer: ")
+    print("\nStoria:", state["story"])
+    print(f"\nCome {state['character']}, devi rispondere a questa domanda:")
+    print("Domanda:", state["questions"][0]["question"])
+    user_answer = input(f"Risposta di {state['character']}: ")
     return {**state, "user_answer": user_answer}
+
+def evaluate_answer(state: State) -> State:
+    # Simple evaluation - in a real application, this would be more sophisticated
+    correct_answer = state["questions"][0]["answer"].lower()
+    user_answer = state["user_answer"].lower()
+    
+    # Check if the answer is correct
+    is_correct = correct_answer in user_answer or user_answer in correct_answer
+    
+    # Check if the answer is partially correct
+    is_partially_correct = any(word in user_answer for word in correct_answer.split())
+    
+    return {
+        **state,
+        "is_correct": is_correct,
+        "is_partially_correct": is_partially_correct and not is_correct
+    }
+
+def continue_story(state: State) -> State:
+    chain = continuation_prompt | llm | StrOutputParser()
+    continuation = chain.invoke({
+        "story": state["story"],
+        "question": state["questions"][0]["question"],
+        "user_answer": state["user_answer"],
+        "correct_answer": state["questions"][0]["answer"],
+        "is_correct": state["is_correct"],
+        "is_partially_correct": state["is_partially_correct"],
+        "character": state["character"],
+        "math_topic": state["math_topic"]
+    })
+    
+    # Update the story with the continuation
+    new_story = state["story"] + "\n\n" + continuation
+    return {**state, "story": new_story, "story_continuation": continuation}
 
 def provide_feedback(state: State) -> State:
     chain = feedback_prompt | llm | StrOutputParser()
@@ -157,7 +257,8 @@ def provide_feedback(state: State) -> State:
         "question": state["questions"][0]["question"],
         "correct_answer": state["questions"][0]["answer"],
         "user_answer": state["user_answer"],
-        "math_topic": state["math_topic"]
+        "math_topic": state["math_topic"],
+        "character": state["character"]
     })
     return {**state, "feedback": feedback}
 
@@ -168,23 +269,29 @@ graph = StateGraph(State)
 graph.add_node("create_story", create_story)
 graph.add_node("generate_questions", generate_questions)
 graph.add_node("get_user_answer", get_user_answer)
+graph.add_node("evaluate_answer", evaluate_answer)
+graph.add_node("continue_story", continue_story)
 graph.add_node("provide_feedback", provide_feedback)
 
 # Define the workflow
 graph.set_entry_point("create_story")
 graph.add_edge("create_story", "generate_questions")
 graph.add_edge("generate_questions", "get_user_answer")
-graph.add_edge("get_user_answer", "provide_feedback")
+graph.add_edge("get_user_answer", "evaluate_answer")
+graph.add_edge("evaluate_answer", "continue_story")
+graph.add_edge("continue_story", "provide_feedback")
 graph.add_edge("provide_feedback", END)
 
 # Compile the graph
 app = graph.compile()
 
 # Get user inputs
-print("Welcome to the Interactive Math Story Generator!")
-math_topic = input("Enter a math topic (e.g., 'fractions', 'algebra', 'geometry'): ")
-story_context = input("Enter a story context (e.g., 'Harry Potter', 'Star Wars'): ")
-character = input("Enter a character from the context: ")
+print("Benvenuto nel Generatore di Storie Matematiche Interattive!")
+print("Interpreterai un personaggio in una storia che coinvolge la matematica!")
+print("Le tue risposte determineranno come si svilupperà la storia!")
+math_topic = input("Inserisci un argomento matematico (es. 'frazioni', 'algebra', 'geometria'): ")
+story_context = input("Inserisci un contesto per la storia (es. 'Harry Potter', 'Star Wars'): ")
+character = input("Inserisci un personaggio dal contesto (interpreterai questo personaggio): ")
 
 # Execute the workflow
 inputs = {
@@ -197,3 +304,4 @@ result = app.invoke(inputs)
 
 # Print the final feedback
 print("\nFeedback:", result["feedback"])
+print("\nContinuazione della Storia:", result["story_continuation"])
