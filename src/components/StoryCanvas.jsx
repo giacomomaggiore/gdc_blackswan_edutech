@@ -1,118 +1,257 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 }
+};
+
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const optionVariants = {
+  initial: { opacity: 0, x: -20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 20 },
+  hover: { 
+    scale: 1.02,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    transition: { duration: 0.2 }
+  },
+  tap: { 
+    scale: 0.98,
+    transition: { duration: 0.1 }
+  }
+};
 
 function StoryCanvas({ scene, onChoice }) {
   const [selectedOption, setSelectedOption] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [lastFeedback, setLastFeedback] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [currentScene, setCurrentScene] = useState(scene);
+
+  useEffect(() => {
+    setCurrentScene(scene);
+    setSelectedOption(null);
+    setShowFeedback(false);
+    setFeedback("");
+  }, [scene]);
 
   const handleOptionClick = async (option) => {
     setSelectedOption(option);
     setIsSubmitting(true);
-    const result = await onChoice(option);
-    setIsSubmitting(false);
-    setShowFeedback(true);
-    setLastFeedback(scene.feedback || "");
-    setTimeout(() => {
-      setShowFeedback(false);
+    // Await the next scene from parent
+    const nextScene = await onChoice(option);
+    // If backend returns feedback, show it, then auto-progress
+    if (nextScene && nextScene.feedback) {
+      setFeedback(nextScene.feedback);
+      setShowFeedback(true);
+      setTimeout(() => {
+        setShowFeedback(false);
+        setIsSubmitting(false);
+        setFeedback("");
+        setSelectedOption(null);
+        setCurrentScene(nextScene);
+      }, 1800);
+    } else {
+      setIsSubmitting(false);
       setSelectedOption(null);
-    }, 1800);
+      setCurrentScene(nextScene || scene);
+    }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="max-w-4xl mx-auto"
-    >
-      {/* Progress Bar */}
-      {typeof scene.progress === 'number' && (
-        <div className="w-full h-3 bg-white/20 rounded-full mb-6 overflow-hidden">
-          <div
-            className="h-full bg-indigo-500 transition-all"
-            style={{ width: `${Math.round(scene.progress * 100)}%` }}
-          ></div>
-        </div>
-      )}
-
-      <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 shadow-xl space-y-8">
-        {/* Scene Image */}
-        {scene.imageRef && (
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 py-12 px-2">
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isSubmitting && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="relative aspect-video rounded-lg overflow-hidden"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
-            <img
-              src={scene.imageRef}
-              alt="Scene illustration"
-              className="w-full h-full object-cover"
+            <motion.div
+              className="flex flex-col items-center"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+            >
+              <motion.div
+                className="w-16 h-16 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin mb-4"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              />
+              <span className="text-white text-lg font-semibold drop-shadow-lg">Thinking...</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5 }}
+        className="max-w-4xl w-full mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-10 shadow-2xl space-y-8 border-2 border-white/20"
+        style={{ minHeight: '70vh' }}
+      >
+        {/* Progress Bar */}
+        {typeof currentScene.progress === 'number' && (
+          <motion.div 
+            className="w-full h-3 bg-white/30 rounded-full mb-6 overflow-hidden"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <motion.div
+              className="h-full bg-gradient-to-r from-pink-500 via-indigo-500 to-purple-500"
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.round(currentScene.progress * 100)}%` }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
             />
           </motion.div>
         )}
 
-        {/* Scene Text */}
-        <motion.p
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-lg leading-relaxed"
+        <motion.div 
+          className="space-y-8"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
         >
-          {scene.sceneText}
-        </motion.p>
-
-        {/* Feedback */}
-        <AnimatePresence>
-          {scene.feedback && showFeedback && (
+          {/* Scene Image */}
+          {currentScene.imageRef && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className={`mt-2 p-4 rounded-lg text-center font-semibold ${scene.feedback.includes('Correct') ? 'bg-green-500/20' : 'bg-red-500/20'}`}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ 
+                type: "spring",
+                stiffness: 100,
+                damping: 15,
+                delay: 0.2 
+              }}
+              className="relative aspect-video rounded-lg overflow-hidden shadow-lg border border-white/20"
             >
-              {scene.feedback}
+              <motion.img
+                src={currentScene.imageRef}
+                alt="Scene illustration"
+                className="w-full h-full object-cover"
+                initial={{ scale: 1.1 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.5 }}
+              />
             </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Multiple Choice Question */}
-        {!scene.finished && scene.question && scene.options && (
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="space-y-4"
+          {/* Scene Text */}
+          <motion.p
+            variants={fadeInUp}
+            className="text-lg leading-relaxed text-white drop-shadow-md bg-gradient-to-r from-indigo-800/60 to-pink-700/40 p-6 rounded-xl border border-white/10"
           >
-            <h3 className="text-xl font-semibold mb-2">{scene.question}</h3>
-            <div className="space-y-3">
-              {scene.options.map((option, idx) => (
-                <motion.button
-                  key={idx}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleOptionClick(option)}
-                  disabled={isSubmitting || selectedOption !== null}
-                  className={`w-full p-4 text-left rounded-lg transition-colors bg-white/5 hover:bg-white/10 border-white/20 border font-semibold ${selectedOption === option ? 'bg-indigo-600 text-white' : ''}`}
-                >
-                  {option}
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
+            {currentScene.sceneText}
+          </motion.p>
 
-        {/* End of Story / Score Summary */}
-        {scene.finished && (
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold">Adventure Complete!</h2>
-            <p className="text-lg">Your final score: <span className="font-bold">{scene.score}</span></p>
-            <p className="text-lg">Thanks for playing!</p>
-          </div>
-        )}
-      </div>
-    </motion.div>
+          {/* Feedback */}
+          <AnimatePresence>
+            {showFeedback && feedback && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="mt-2 p-4 rounded-lg text-center font-semibold shadow-md border-2 bg-blue-500/30 border-blue-400/40 text-blue-900"
+              >
+                {feedback}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Multiple Choice Question */}
+          {!currentScene.finished
+            && Array.isArray(currentScene.questions)
+            && currentScene.questions.length > 0
+            && (() => {
+              const q = currentScene.questions[0];
+              return (
+                <motion.div
+                  variants={fadeInUp}
+                  className="space-y-4"
+                >
+                  <motion.h3 
+                    className="text-xl font-semibold mb-2 text-white drop-shadow"
+                    variants={fadeInUp}
+                  >
+                    {q.prompt}
+                  </motion.h3>
+                  <motion.div 
+                    className="space-y-3"
+                    variants={staggerContainer}
+                  >
+                    {q.choices.map((option, idx) => (
+                      <motion.button
+                        key={idx}
+                        variants={optionVariants}
+                        whileHover="hover"
+                        whileTap="tap"
+                        onClick={() => handleOptionClick(option)}
+                        disabled={isSubmitting || selectedOption !== null}
+                        className={`w-full p-4 text-left rounded-lg transition-colors bg-white/20 hover:bg-white/30 border-white/30 border font-semibold text-indigo-900 shadow-md text-lg ${
+                          selectedOption === option ? 'bg-indigo-600 text-white border-indigo-400' : ''
+                        }`}
+                      >
+                        {option}
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                </motion.div>
+              );
+            })()}
+
+          {/* End of Story / Score Summary */}
+          {currentScene.finished && (
+            <motion.div 
+              className="text-center space-y-4"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 100, damping: 15 }}
+            >
+              <motion.h2 
+                className="text-2xl font-bold text-white drop-shadow"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                Adventure Complete!
+              </motion.h2>
+              <motion.p 
+                className="text-lg text-white"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                Your final score: <span className="font-bold">{currentScene.score}</span>
+              </motion.p>
+              <motion.p 
+                className="text-lg text-white"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                Thanks for playing!
+              </motion.p>
+            </motion.div>
+          )}
+        </motion.div>
+      </motion.div>
+    </div>
   );
 }
 

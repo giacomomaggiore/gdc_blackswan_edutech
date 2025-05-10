@@ -7,12 +7,12 @@ function App() {
   const [appState, setAppState] = useState('intro');
   const [storyData, setStoryData] = useState(null);
   const [studentAnswers, setStudentAnswers] = useState(null);
-  const [sessionId, setSessionId] = useState(null);
+  const [character, setCharacter] = useState('adventurer');
 
   const handleIntroComplete = (data) => {
     setStudentAnswers(data.answers);
+    setCharacter(data.character);
     setStoryData(data.storyData);
-    setSessionId(data.storyData.sessionId);
     setAppState('story');
   };
 
@@ -24,15 +24,37 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sessionId,
-          choice
+          choice,
+          currentStory: storyData,
+          character
         }),
       });
-      
       const nextScene = await response.json();
       setStoryData(nextScene);
     } catch (error) {
       console.error('Error progressing story:', error);
+    }
+  };
+
+  // Debug: Skip intro and generate a story immediately
+  const handleDebugSkip = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/generate-story', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          storyContext: 'fantasy world',
+          character: 'adventurer'
+        }),
+      });
+      const data = await response.json();
+      setCharacter('adventurer');
+      setStoryData(data);
+      setAppState('story');
+    } catch (error) {
+      console.error('Error skipping intro:', error);
     }
   };
 
@@ -46,6 +68,13 @@ function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
+            {/* Debug Skip Button */}
+            <button
+              onClick={handleDebugSkip}
+              className="mb-6 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded shadow-lg"
+            >
+              Debug: Skip Intro & Start Story
+            </button>
             <StudentChatbotIntro onComplete={handleIntroComplete} />
           </motion.div>
         ) : (
