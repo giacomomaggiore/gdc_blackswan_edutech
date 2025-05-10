@@ -13,13 +13,25 @@ const pageTransition = {
   exit: { opacity: 0, x: -20 }
 };
 
+const typingAnimation = {
+  initial: { width: 0 },
+  animate: { 
+    width: "100%",
+    transition: {
+      duration: 2,
+      ease: "easeInOut"
+    }
+  }
+};
+
 function StudentChatbotIntro({ onComplete }) {
   const [introData, setIntroData] = useState(null);
-  const [answers, setAnswers] = useState(['', '']);
+  const [answers, setAnswers] = useState(['', '', '', '']); // Added space for math topic
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [direction, setDirection] = useState(1);
+  const [showTypingAnimation, setShowTypingAnimation] = useState(true);
 
   useEffect(() => {
     // Fetch questions from backend
@@ -33,6 +45,8 @@ function StudentChatbotIntro({ onComplete }) {
       .then(data => {
         setIntroData(data);
         setIsLoading(false);
+        // Hide typing animation after 2 seconds
+        setTimeout(() => setShowTypingAnimation(false), 2000);
       })
       .catch(error => {
         console.error('Error fetching intro data:', error);
@@ -62,7 +76,8 @@ function StudentChatbotIntro({ onComplete }) {
           },
           body: JSON.stringify({
             storyContext: answers[1] || 'fantasy world',
-            character: answers[2] || 'adventurer'
+            character: answers[2] || 'adventurer',
+            mathTopic: answers[3] || 'algebra' // Include math topic in the request
           }),
         });
         
@@ -72,11 +87,17 @@ function StudentChatbotIntro({ onComplete }) {
           throw new Error(data.error || 'Failed to generate story');
         }
         
-        if (!data.sceneText || !data.question || !data.options) {
+        if (!data.sceneText || !data.questions || !Array.isArray(data.questions) || !data.questions[0]?.prompt || !data.questions[0]?.choices) {
           throw new Error('Invalid story data received from server');
         }
         
-        onComplete({ answers, character: answers[2] || 'adventurer', storyData: data });
+        onComplete({ 
+          answers, 
+          character: answers[2] || 'adventurer', 
+          storyContext: answers[1] || 'fantasy world', 
+          mathTopic: answers[3] || 'algebra',
+          storyData: data 
+        });
       } catch (error) {
         console.error('Error generating story:', error);
         setError(error.message || 'Failed to generate story. Please try again.');
@@ -155,6 +176,23 @@ function StudentChatbotIntro({ onComplete }) {
       >
         Welcome to Math Adventures!
       </motion.h2>
+
+      {showTypingAnimation && (
+        <motion.div
+          className="mb-8 text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="h-4 bg-white/20 rounded-full overflow-hidden"
+            variants={typingAnimation}
+            initial="initial"
+            animate="animate"
+          />
+        </motion.div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div 
@@ -173,16 +211,34 @@ function StudentChatbotIntro({ onComplete }) {
             >
               {introData.questions[currentQuestion]}
             </motion.label>
-            <motion.textarea
-              value={answers[currentQuestion]}
-              onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
-              className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
-              rows="4"
-              placeholder="Tell us about yourself..."
-              required
-              variants={fadeInUp}
-              transition={{ delay: 0.1 }}
-            />
+            {currentQuestion === 3 ? (
+              <motion.select
+                value={answers[currentQuestion]}
+                onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
+                className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
+                required
+                variants={fadeInUp}
+                transition={{ delay: 0.1 }}
+              >
+                <option value="">Select a math topic</option>
+                <option value="algebra">Algebra</option>
+                <option value="geometry">Geometry</option>
+                <option value="calculus">Calculus</option>
+                <option value="statistics">Statistics</option>
+                <option value="trigonometry">Trigonometry</option>
+              </motion.select>
+            ) : (
+              <motion.textarea
+                value={answers[currentQuestion]}
+                onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
+                className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
+                rows="4"
+                placeholder="Tell us about yourself..."
+                required
+                variants={fadeInUp}
+                transition={{ delay: 0.1 }}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
         <motion.button

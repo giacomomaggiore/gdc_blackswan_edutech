@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -152,12 +153,31 @@ function StoryCanvas({ scene, onChoice }) {
           )}
 
           {/* Scene Text */}
-          <motion.p
-            variants={fadeInUp}
-            className="text-lg leading-relaxed text-white drop-shadow-md bg-gradient-to-r from-indigo-800/60 to-pink-700/40 p-6 rounded-xl border border-white/10"
-          >
-            {currentScene.sceneText}
-          </motion.p>
+          {!currentScene.finished && (
+            <motion.p
+              variants={fadeInUp}
+              className="text-lg leading-relaxed text-white drop-shadow-md bg-gradient-to-r from-indigo-800/60 to-pink-700/40 p-6 rounded-xl border border-white/10"
+            >
+              {currentScene.sceneText}
+            </motion.p>
+          )}
+
+          {/* Math Concept and Metaphor */}
+          {!currentScene.finished && currentScene.mathConcept && (
+            <motion.div
+              variants={fadeInUp}
+              className="bg-white/5 rounded-xl p-6 border border-white/10"
+            >
+              <h3 className="text-xl font-semibold text-indigo-200 mb-2">Math Concept</h3>
+              <p className="text-white mb-4">{currentScene.mathConcept}</p>
+              {currentScene.metaphor && (
+                <>
+                  <h3 className="text-xl font-semibold text-indigo-200 mb-2">Story Metaphor</h3>
+                  <p className="text-white italic">{currentScene.metaphor}</p>
+                </>
+              )}
+            </motion.div>
+          )}
 
           {/* Feedback */}
           <AnimatePresence>
@@ -218,35 +238,59 @@ function StoryCanvas({ scene, onChoice }) {
           {/* End of Story / Score Summary */}
           {currentScene.finished && (
             <motion.div 
-              className="text-center space-y-4"
+              className="text-center space-y-8"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", stiffness: 100, damping: 15 }}
             >
-              <motion.h2 
-                className="text-2xl font-bold text-white drop-shadow"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                Adventure Complete!
-              </motion.h2>
-              <motion.p 
-                className="text-lg text-white"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                Your final score: <span className="font-bold">{currentScene.score}</span>
-              </motion.p>
-              <motion.p 
-                className="text-lg text-white"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                Thanks for playing!
-              </motion.p>
+              <div className="mb-4">
+                <span className="inline-block bg-indigo-600 text-white rounded-full p-4 text-4xl shadow-lg mb-2">🎉</span>
+              </div>
+              <h2 className="text-3xl font-bold mb-2 text-white drop-shadow">Adventure Complete!</h2>
+              <p className="text-lg text-white mb-2">Your final score: <span className="font-bold">{currentScene.score}</span></p>
+              
+              {/* Theoretical Summary */}
+              {currentScene.theorySummary && (
+                <motion.div
+                  variants={fadeInUp}
+                  className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
+                >
+                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">What We Learned</h3>
+                  <div className="prose prose-invert prose-p:text-white prose-strong:text-pink-300 prose-em:text-indigo-200">
+                    <ReactMarkdown>{currentScene.theorySummary}</ReactMarkdown>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Story Metaphors */}
+              {currentScene.metaphors && currentScene.metaphors.length > 0 && (
+                <motion.div
+                  variants={fadeInUp}
+                  className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
+                >
+                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">Story Metaphors</h3>
+                  <div className="space-y-4">
+                    {currentScene.metaphors.map((metaphor, index) => (
+                      <div key={index} className="bg-white/5 rounded-lg p-4">
+                        <p className="text-white italic">{metaphor}</p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Feedback/Advice */}
+              {currentScene.sceneText && (
+                <motion.div
+                  variants={fadeInUp}
+                  className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
+                >
+                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">Your Journey</h3>
+                  <div className="prose prose-invert prose-p:text-white prose-strong:text-pink-300 prose-em:text-indigo-200">
+                    <ReactMarkdown>{currentScene.sceneText}</ReactMarkdown>
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </motion.div>

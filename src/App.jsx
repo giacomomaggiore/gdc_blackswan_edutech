@@ -8,10 +8,12 @@ function App() {
   const [storyData, setStoryData] = useState(null);
   const [studentAnswers, setStudentAnswers] = useState(null);
   const [character, setCharacter] = useState('adventurer');
+  const [storyContext, setStoryContext] = useState('fantasy world');
 
   const handleIntroComplete = (data) => {
     setStudentAnswers(data.answers);
     setCharacter(data.character);
+    setStoryContext(data.storyContext || 'fantasy world');
     setStoryData(data.storyData);
     setAppState('story');
   };
@@ -25,7 +27,8 @@ function App() {
         },
         body: JSON.stringify({
           choice,
-          currentStory: storyData,
+          currentScene: storyData,
+          storyContext,
           character
         }),
       });
