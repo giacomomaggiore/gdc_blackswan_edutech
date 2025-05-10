@@ -5,6 +5,9 @@ import os
 from dotenv import load_dotenv
 import logging
 import json
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.prompts import ChatPromptTemplate
+from langchain.schema import StrOutputParser
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,7 +24,17 @@ try:
     api_key = os.getenv('GEMINI_API_KEY')
     logger.debug(f"API Key loaded: {'Yes' if api_key else 'No'}")
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
+    
+    # Initialize the Gemini model with system message conversion
+    llm = ChatGoogleGenerativeAI(
+        model="models/gemini-2.0-flash",
+        temperature=0.7,
+        google_api_key=api_key,
+        max_output_tokens=2048,
+        top_p=0.8,
+        top_k=40,
+        convert_system_message_to_human=True  # Convert system messages to human messages
+    )
     logger.info("Gemini API configured successfully")
 except Exception as e:
     logger.error(f"Error configuring Gemini API: {str(e)}")
@@ -30,47 +43,155 @@ except Exception as e:
 # Store user sessions and their story progress
 user_sessions = {}
 
-# This would typically come from a database, but for now we'll hardcode it
-TEACHER_SETTINGS = {
-    "math_topic": "inequalities",  # This would be set by the teacher
-    "age_group": "8-12"
-}
-
-# Add a scoring and progress system
-MAX_STEPS = 5  # For demo, end after 5 steps
-
-def is_answer_correct(ai_options, user_choice):
-    # For demo, randomly pick the first option as correct
-    return user_choice == ai_options[0]
-
-def generate_story_prompt(interests):
-    return f"""Create a short, engaging, and age-appropriate STEM story for children aged {TEACHER_SETTINGS['age_group']} that incorporates the following:
-    - The student's interests: {interests}
-    - The mathematical topic to teach: {TEACHER_SETTINGS['math_topic']}
-    - Do NOT mention or reference quantum physics or advanced science topics.
+# Create prompt templates for different stages
+story_prompt = ChatPromptTemplate.from_messages([
+    ("human", """You are a creative storyteller. Create a short, engaging STEM story that:
+    1. Takes place in the given context
+    2. Features the chosen character
+    3. Naturally incorporates the mathematical concept
+    4. Creates a branching narrative that can change based on character decisions
+    5. Ends with a multiple-choice question that tests the mathematical concept
     
-    The story should:
-    1. Be only 2-3 sentences long for each segment, keeping it concise and easy to read.
-    2. Use simple, clear language appropriate for {TEACHER_SETTINGS['age_group']} year olds.
-    3. Be fun and relatable, and avoid advanced or confusing topics.
-    4. End with a multiple-choice question (2-3 options) that relates to the story and the math topic. The question should be clear and age-appropriate.
-    5. Do NOT reference quantum physics or advanced science.
-    6. Do NOT continue the story until the user chooses an answer.
+    Important rules:
+    - The story must be concise (maximum 200-300 words)
+    - Each paragraph should be short and direct
+    - Use simple, clear language
+    - Keep the story engaging and educational
+    - Make the reader feel like they are the character
+    - End with a clear multiple-choice question with 2-3 options
+    - Format the question as "Do you: A) [option 1]? B) [option 2]? C) [option 3]?"
+    - After each option, include the consequence in parentheses: "(If [option] is chosen): [consequence]"
     
-    Format the response as JSON with the following structure:
-    {{
-        "sceneText": "The story text for this segment (2-3 sentences)",
-        "imageRef": "A description of what the scene should look like",
-        "question": "A multiple-choice question for the user",
-        "options": ["Option 1", "Option 2", "Option 3"]
-    }}
-    """
+    Create a short story with these elements:
+    Mathematical Topic: {math_topic}
+    Story Context: {story_context}
+    Character: {character}""")
+])
+
+questions_prompt = ChatPromptTemplate.from_messages([
+    ("human", """You are a creative educator. Create 3 interactive questions that:
+    1. Are directly connected to the story
+    2. Verify understanding of the mathematical concept
+    3. Are engaging and contextual
+    4. Make the reader think as if they were the character
+    5. Have clear consequences for the answer
+    
+    Format each question exactly like this:
+    Question 1: [question text that makes the reader think as the character]
+    Answer 1: [answer text]
+    Consequences:
+    - Correct: [what happens if the answer is correct]
+    - Wrong: [what happens if the answer is wrong]
+    
+    Question 2: [question text that makes the reader think as the character]
+    Answer 2: [answer text]
+    Consequences:
+    - Correct: [what happens if the answer is correct]
+    - Wrong: [what happens if the answer is wrong]
+    
+    Question 3: [question text that makes the reader think as the character]
+    Answer 3: [answer text]
+    Consequences:
+    - Correct: [what happens if the answer is correct]
+    - Wrong: [what happens if the answer is wrong]
+    
+    Create questions based on:
+    Story: {story}
+    Mathematical Topic: {math_topic}
+    Character: {character}""")
+])
+
+continuation_prompt = ChatPromptTemplate.from_messages([
+    ("human", """You are a creative storyteller. Continue the story based on the character's answer:
+    1. If the answer is correct, continue with the best possible outcome
+    2. If the answer is wrong, create a challenging situation the character must overcome
+    Keep the story engaging and maintain the character's personality.
+    
+    Continue the story based on:
+    Previous Story: {story}
+    Question: {question}
+    Character's Answer: {user_answer}
+    Correct Answer: {correct_answer}
+    Is Correct: {is_correct}
+    Character: {character}
+    Mathematical Topic: {math_topic}""")
+])
+
+feedback_prompt = ChatPromptTemplate.from_messages([
+    ("human", """You are a math tutor and roleplay guide. Provide feedback that:
+    1. Evaluates the correctness of the answer
+    2. Explains the mathematical concept if needed
+    3. Encourages further learning
+    4. Maintains the character's perspective
+    5. Suggests how the character could have approached the problem
+    Be encouraging and educational while keeping the roleplay engaging.
+    
+    Provide feedback for:
+    Question: {question}
+    Correct Answer: {correct_answer}
+    User's Answer: {user_answer}
+    Mathematical Topic: {math_topic}
+    Character: {character}""")
+])
+
+def parse_story_and_question(story_text):
+    """Parse the story text to extract the story, question, and options."""
+    # Split the story into parts
+    parts = story_text.split("Do you:")
+    if len(parts) != 2:
+        return {
+            "story": story_text,
+            "question": "What would you do next?",
+            "options": ["Continue", "Turn back"]
+        }
+    
+    story = parts[0].strip()
+    question_part = parts[1].strip()
+    
+    # Extract options and their consequences
+    options = []
+    current_option = None
+    current_consequence = None
+    
+    for line in question_part.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+            
+        if line.startswith('A)') or line.startswith('B)') or line.startswith('C)'):
+            if current_option and current_consequence:
+                options.append({
+                    "text": current_option,
+                    "consequence": current_consequence
+                })
+            option_parts = line.split('?', 1)
+            current_option = option_parts[0].strip()
+            if len(option_parts) > 1:
+                current_consequence = option_parts[1].strip()
+        elif line.startswith('(If'):
+            if current_consequence:
+                current_consequence += " " + line.strip('()')
+    
+    if current_option and current_consequence:
+        options.append({
+            "text": current_option,
+            "consequence": current_consequence
+        })
+    
+    return {
+        "story": story,
+        "question": f"Do you: {', '.join(opt['text'] for opt in options)}?",
+        "options": [opt['text'] for opt in options],
+        "consequences": {opt['text']: opt['consequence'] for opt in options}
+    }
 
 @app.route('/api/intro', methods=['GET'])
 def get_intro():
     return jsonify({
         "questions": [
-            "What are your favorite things to do? (e.g., sports, games, books, movies, etc.)"
+            "What are your favorite things to do? (e.g., sports, games, books, movies, etc.)",
+            "What kind of story would you like to be part of? (e.g., fantasy, sci-fi, adventure)",
+            "Who would you like to be in this story? (e.g., a wizard, a space explorer, a detective)"
         ]
     })
 
@@ -79,40 +200,44 @@ def generate_story():
     try:
         data = request.json
         interests = data.get('interests', '')
+        story_context = data.get('storyContext', 'fantasy world')
+        character = data.get('character', 'adventurer')
+        math_topic = data.get('mathTopic', 'basic arithmetic')
         
-        # Generate story using Gemini
-        response = model.generate_content(generate_story_prompt(interests))
+        # Generate initial story
+        story_chain = story_prompt | llm | StrOutputParser()
+        story_text = story_chain.invoke({
+            "math_topic": math_topic,
+            "story_context": story_context,
+            "character": character
+        })
         
-        # Parse the response and return the story
-        try:
-            raw_text = response.text.strip()
-            if raw_text.startswith('```json'):
-                raw_text = raw_text[len('```json'):].strip()
-            if raw_text.startswith('```'):
-                raw_text = raw_text[len('```'):].strip()
-            if raw_text.endswith('```'):
-                raw_text = raw_text[:-len('```')].strip()
-            story_data = json.loads(raw_text)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON. Raw response: {response.text}")
-            logger.error(f"JSONDecodeError: {str(e)}")
-            return jsonify({
-                "error": "Failed to generate a valid story. Please try again.",
-                "details": "The AI response was not in the expected format."
-            }), 500
+        # Parse the story and extract question/options
+        parsed_story = parse_story_and_question(story_text)
         
         session_id = str(len(user_sessions) + 1)
         user_sessions[session_id] = {
-            'current_scene': story_data,
-            'interests': interests,
+            'story': parsed_story['story'],
+            'current_question': parsed_story['question'],
+            'options': parsed_story['options'],
+            'consequences': parsed_story['consequences'],
+            'character': character,
+            'math_topic': math_topic,
             'score': 0,
             'step': 1
         }
-        story_data['sessionId'] = session_id
-        story_data['progress'] = 1 / MAX_STEPS
-        story_data['score'] = 0
-        story_data['finished'] = False
-        return jsonify(story_data)
+        
+        # Format response to match expected structure
+        return jsonify({
+            "sessionId": session_id,
+            "sceneText": parsed_story['story'],
+            "imageRef": f"A scene featuring {character} in {story_context}",
+            "question": parsed_story['question'],
+            "options": parsed_story['options'],
+            "progress": 0.25,  # First step of 4
+            "score": 0,
+            "finished": False
+        })
     except Exception as e:
         logger.error(f"Error in generate_story: {str(e)}")
         return jsonify({
@@ -122,79 +247,80 @@ def generate_story():
 
 @app.route('/api/progress-story', methods=['POST'])
 def progress_story():
-    data = request.json
-    session_id = data.get('sessionId')
-    choice = data.get('choice')
-    
-    if session_id not in user_sessions:
-        return jsonify({"error": "Invalid session"}), 400
-    
-    session = user_sessions[session_id]
-    current_scene = session['current_scene']
-    step = session['step']
-    score = session['score']
-    
-    # Check if answer is correct
-    correct = is_answer_correct(current_scene['options'], choice)
-    feedback = "Correct! Well done!" if correct else "Not quite right. Try again!"
-    if correct:
-        score += 1
-    step += 1
-    
-    finished = step > MAX_STEPS
-    if finished:
-        return jsonify({
-            "sceneText": f"The adventure is over! Your final score: {score}/{MAX_STEPS}.",
-            "imageRef": "A celebratory scene with confetti.",
-            "question": None,
-            "options": [],
-            "sessionId": session_id,
-            "progress": 1.0,
-            "score": score,
-            "finished": True,
-            "feedback": feedback
-        })
-    
-    # Generate next scene
-    next_scene_prompt = f"""Based on the previous scene:
-    {current_scene}
-    
-    And the user's choice:
-    {choice}
-    
-    Continue the story with another short segment (2-3 sentences), keeping it simple and fun for {TEACHER_SETTINGS['age_group']} year olds. Do NOT reference quantum physics or advanced science. End with a new multiple-choice question (2-3 options) related to the story and the math topic. Do NOT continue the story until the user chooses an answer.
-    
-    Format as JSON with:
-    {{
-        "sceneText": "The story text for this segment (2-3 sentences)",
-        "imageRef": "A description of what the scene should look like",
-        "question": "A multiple-choice question for the user",
-        "options": ["Option 1", "Option 2", "Option 3"]
-    }}
-    """
-    response = model.generate_content(next_scene_prompt)
     try:
-        raw_text = response.text.strip()
-        if raw_text.startswith('```json'):
-            raw_text = raw_text[len('```json'):].strip()
-        if raw_text.startswith('```'):
-            raw_text = raw_text[len('```'):].strip()
-        if raw_text.endswith('```'):
-            raw_text = raw_text[:-len('```')].strip()
-        next_scene = json.loads(raw_text)
-        session['current_scene'] = next_scene
-        session['score'] = score
-        session['step'] = step
-        next_scene['sessionId'] = session_id
-        next_scene['progress'] = step / MAX_STEPS
-        next_scene['score'] = score
-        next_scene['finished'] = False
-        next_scene['feedback'] = feedback
-        return jsonify(next_scene)
+        data = request.json
+        session_id = data.get('sessionId')
+        user_answer = data.get('choice')
+        
+        if session_id not in user_sessions:
+            return jsonify({"error": "Invalid session"}), 400
+        
+        session = user_sessions[session_id]
+        
+        # Get the consequence for the chosen option
+        consequence = session['consequences'].get(user_answer, "You continue your journey.")
+        
+        # Generate story continuation
+        continuation_chain = continuation_prompt | llm | StrOutputParser()
+        continuation = continuation_chain.invoke({
+            "story": session['story'],
+            "question": session['current_question'],
+            "user_answer": user_answer,
+            "correct_answer": session['options'][0],  # For now, assume first option is correct
+            "is_correct": user_answer == session['options'][0],
+            "character": session['character'],
+            "math_topic": session['math_topic']
+        })
+        
+        # Update session
+        session['story'] += "\n\n" + consequence + "\n\n" + continuation
+        session['step'] += 1
+        
+        # Check if story is finished (after 4 steps)
+        finished = session['step'] > 4
+        
+        if finished:
+            return jsonify({
+                "sceneText": session['story'],
+                "imageRef": "A celebratory scene with confetti",
+                "question": None,
+                "options": [],
+                "progress": 1.0,
+                "score": session['score'],
+                "finished": True
+            })
+        
+        # Generate next part of the story
+        story_chain = story_prompt | llm | StrOutputParser()
+        next_story_text = story_chain.invoke({
+            "math_topic": session['math_topic'],
+            "story_context": "continuing the adventure",
+            "character": session['character']
+        })
+        
+        # Parse the next part
+        parsed_story = parse_story_and_question(next_story_text)
+        
+        # Update session with new question and options
+        session['current_question'] = parsed_story['question']
+        session['options'] = parsed_story['options']
+        session['consequences'] = parsed_story['consequences']
+        
+        return jsonify({
+            "sceneText": session['story'],
+            "imageRef": f"A scene featuring {session['character']} facing a new challenge",
+            "question": parsed_story['question'],
+            "options": parsed_story['options'],
+            "progress": session['step'] / 4,
+            "score": session['score'],
+            "finished": False
+        })
     except Exception as e:
-        logger.error(f"Failed to parse Gemini response as JSON. Raw response: {response.text}")
-        logger.error(f"Exception: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error in progress_story: {str(e)}")
+        return jsonify({
+            "error": "Failed to progress story",
+            "details": str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
