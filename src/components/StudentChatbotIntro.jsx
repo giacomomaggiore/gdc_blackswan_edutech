@@ -162,12 +162,34 @@ function StudentChatbotIntro({ onComplete }) {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 py-12 px-2">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-900 py-12 px-2 overflow-hidden">
+      {/* Animated gradient background */}
       <motion.div
-        className="max-w-xl w-full mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-10 shadow-2xl space-y-8 border-2 border-white/20"
+        className="absolute inset-0 z-0"
+        style={{ pointerEvents: 'none' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        <motion.div
+          className="w-full h-full"
+          animate={{
+            background: [
+              'radial-gradient(circle at 20% 30%, #4f46e5 0%, #a21caf 60%, #111827 100%)',
+              'radial-gradient(circle at 80% 70%, #a21caf 0%, #4f46e5 60%, #111827 100%)',
+              'radial-gradient(circle at 50% 50%, #4f46e5 0%, #a21caf 60%, #111827 100%)'
+            ]
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ width: '100%', height: '100%', position: 'absolute', zIndex: 0 }}
+        />
+      </motion.div>
+      <motion.div
+        className="max-w-xl w-full mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-10 space-y-8 z-10"
+        whileHover={{ scale: 1.04 }}
         initial={{ scale: 1 }}
-        animate={{ scale: [1, 1.04, 0.97, 1.03, 1] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        animate={{ scale: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         style={{ minHeight: '60vh' }}
       >
         <motion.h2 
@@ -180,19 +202,7 @@ function StudentChatbotIntro({ onComplete }) {
         </motion.h2>
 
         {showTypingAnimation && (
-          <motion.div
-            className="mb-8 text-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="h-4 bg-white/20 rounded-full overflow-hidden"
-              variants={typingAnimation}
-              initial="initial"
-              animate="animate"
-            />
-          </motion.div>
+          <></>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">

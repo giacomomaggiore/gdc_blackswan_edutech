@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import React from 'react';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -38,6 +39,30 @@ function StoryCanvas({ scene, onChoice }) {
   const [feedback, setFeedback] = useState("");
   const [currentScene, setCurrentScene] = useState(scene);
 
+  // Debug: Skip to end screen
+  const isDev = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+  const mockEndScene = {
+    finished: true,
+    score: 5,
+    metaphors: [
+      "Solving the puzzle was like finding the right key for a locked door.",
+      "Numbers danced together in perfect balance.",
+      "The problem was a mountain, but you climbed it step by step.",
+      "Each clue was a piece of a bigger picture.",
+      "You built a bridge from question to answer."
+    ],
+    mathConcepts: [
+      "Equations",
+      "Balance",
+      "Problem Solving",
+      "Patterns",
+      "Logical Steps"
+    ],
+    principleSummary: "If you do the same thing to both sides of an equation, it stays true. For example, adding 3 to both sides keeps the balance!",
+    theorySummary: "- Equations: Like a balance scale, both sides must stay equal.\n- Patterns: Help us predict what comes next.\n- Logical Steps: Solving problems one step at a time makes them easier.",
+    sceneText: "Great job! You used math thinking all the way through."
+  };
+
   useEffect(() => {
     setCurrentScene(scene);
     setSelectedOption(null);
@@ -70,6 +95,16 @@ function StoryCanvas({ scene, onChoice }) {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 py-12 px-2">
+      {/* Debug Button */}
+      {isDev && (
+        <button
+          className="fixed top-4 left-4 z-50 bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg shadow-lg"
+          onClick={() => setCurrentScene(mockEndScene)}
+        >
+          Debug: Skip to End Screen
+        </button>
+      )}
+
       {/* Loading Overlay */}
       <AnimatePresence>
         {isSubmitting && (
@@ -221,66 +256,52 @@ function StoryCanvas({ scene, onChoice }) {
           {/* End of Story / Score Summary */}
           {currentScene.finished && (
             <motion.div 
-              className="text-center space-y-8"
+              className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 rounded-3xl shadow-2xl p-10"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", stiffness: 100, damping: 15 }}
             >
-              <div className="mb-4">
-                <span className="inline-block bg-indigo-600 text-white rounded-full p-4 text-4xl shadow-lg mb-2">🎉</span>
-              </div>
-              <h2 className="text-3xl font-bold mb-2 text-white drop-shadow">Adventure Complete!</h2>
-              <p className="text-lg text-white mb-2">Your final score: <span className="font-bold">{currentScene.score}</span></p>
-              
-              {/* Theoretical Summary */}
+              <span className="inline-block bg-yellow-400 text-white rounded-full p-8 text-6xl shadow-lg mb-2">🏆</span>
+              <h2 className="text-4xl font-extrabold mb-2 text-white drop-shadow">Adventure Complete!</h2>
+              <p className="text-2xl text-white mb-2">Your final score: <span className="font-bold">{currentScene.score}</span></p>
+
+              {/* Schematic Journey Grid */}
+              {currentScene.metaphors && currentScene.metaphors.length > 0 && (
+                <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
+                  {currentScene.metaphors.map((metaphor, index) => (
+                    <div key={index} className="bg-white/20 rounded-2xl p-6 flex flex-col items-center shadow-lg border-2 border-white/20">
+                      <div className="text-3xl font-bold text-indigo-400 mb-2">{index + 1}</div>
+                      <div className="text-lg text-pink-200 font-semibold mb-2 text-center">{currentScene.mathConcepts[index]}</div>
+                      <div className="italic text-white text-center">{metaphor}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Principle Summary */}
+              {currentScene.principleSummary && (
+                <div className="w-full max-w-2xl bg-yellow-100/20 rounded-xl p-6 border-2 border-yellow-300 mt-8">
+                  <h3 className="text-xl font-bold text-yellow-300 mb-2 text-center">Main Mathematical Principle</h3>
+                  <div className="text-lg text-yellow-100 text-center">
+                    {currentScene.principleSummary}
+                  </div>
+                </div>
+              )}
+
               {currentScene.theorySummary && (
-                <motion.div
-                  variants={fadeInUp}
-                  className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
-                >
-                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">What We Learned</h3>
-                  <div className="prose prose-invert prose-p:text-white prose-strong:text-pink-300 prose-em:text-indigo-200">
+                <div className="w-full max-w-2xl bg-white/10 rounded-xl p-6 border border-white/20 mt-8">
+                  <h3 className="text-2xl font-bold text-indigo-200 mb-4 text-center">What You Learned</h3>
+                  <div className="prose prose-invert prose-p:text-white prose-strong:text-pink-300 prose-em:text-indigo-200 mx-auto">
                     <ReactMarkdown>{currentScene.theorySummary}</ReactMarkdown>
                   </div>
-                </motion.div>
+                </div>
               )}
-
-              {/* Story Journey and Mathematical Concepts */}
-              {currentScene.metaphors && currentScene.metaphors.length > 0 && (
-                <motion.div
-                  variants={fadeInUp}
-                  className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
-                >
-                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">Your Mathematical Journey</h3>
-                  <div className="space-y-6">
-                    {currentScene.metaphors.map((metaphor, index) => (
-                      <div key={index} className="bg-white/5 rounded-lg p-6">
-                        <h4 className="text-xl font-semibold text-pink-200 mb-2">Chapter {index + 1}</h4>
-                        <p className="text-white italic mb-3">{metaphor}</p>
-                        {currentScene.mathConcepts[index] && (
-                          <p className="text-white">
-                            <span className="text-indigo-200 font-semibold">Mathematical Concept: </span>
-                            {currentScene.mathConcepts[index]}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Feedback/Advice */}
-              {currentScene.sceneText && (
-                <motion.div
-                  variants={fadeInUp}
-                  className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
-                >
-                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">Your Journey</h3>
-                  <div className="prose prose-invert prose-p:text-white prose-strong:text-pink-300 prose-em:text-indigo-200">
-                    <ReactMarkdown>{currentScene.sceneText}</ReactMarkdown>
-                  </div>
-                </motion.div>
-              )}
+              <button
+                className="mt-8 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold rounded-full shadow-lg transition-colors"
+                onClick={() => window.location.reload()}
+              >
+                Play Again
+              </button>
             </motion.div>
           )}
         </motion.div>

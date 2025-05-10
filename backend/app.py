@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 api_key = os.getenv('GEMINI_API_KEY')
 llm = ChatGoogleGenerativeAI(
     model="models/gemini-2.0-flash",
-    temperature=0.7,
+    temperature=0.9,
     google_api_key=api_key,
     max_output_tokens=2048,
     top_p=0.8,
@@ -38,17 +38,17 @@ story_prompt = ChatPromptTemplate.from_messages([
     - Be immersive and captivating, drawing students into the narrative
     - Naturally integrate mathematical concepts without explicitly stating them
     - Encourage students to discover and formulate problems themselves
-    - Use rich, descriptive language that brings the story world to life
+    - Use clear, simple, age-appropriate language for 10-12 year olds
+    - Keep the story concise and easy to follow
     - Create meaningful connections between story elements and mathematical thinking
     - Maintain a consistent tone and style throughout the narrative
-    - Be age-appropriate and accessible for 10-12 year old students
     - Include subtle metaphors that help students understand abstract concepts
     - Balance entertainment with educational value
     """),
     ("human", """
-    Create an engaging STEM story scene for a student (age 10-12).
-    - For the first scene (step 1), create a longer introduction (6-8 sentences) that sets up the world, characters, and initial situation. This should be more descriptive and immersive.
-    - For subsequent scenes, keep them concise (4-5 sentences) and focus on the evolving narrative.
+    Create a short, simple STEM story scene for a student (age 10-12).
+    - For the first scene (step 1), write a brief introduction (3-4 sentences) that sets up the world, characters, and initial situation. Make it easy to understand.
+    - For subsequent scenes, keep them very concise (2-3 sentences) and focus on the evolving narrative.
     - The story should feel continuous and connected, referencing previous events and maintaining narrative continuity.
     - Instead of explicitly stating a math problem, present a situation that requires mathematical thinking. Let the student identify and formulate the problem themselves.
     - At the end of each scene, present a situation that requires mathematical thinking, but don't explicitly state it as a math problem.
@@ -57,21 +57,21 @@ story_prompt = ChatPromptTemplate.from_messages([
     - Include a subtle metaphor that relates the story situation to the math concept, but don't explicitly state the connection.
     - Return ONLY a JSON object in this format:
     {{
-      \"sceneText\": \"...\",
-      \"imageRef\": \"...\",
-      \"progress\": 0.2,
-      \"questions\": [
+      "sceneText": "...",
+      "imageRef": "...",
+      "progress": 0.2,
+      "questions": [
         {{
-          \"prompt\": \"...\",
-          \"choices\": [\"...\", \"...\", \"...\"],
-          \"answer\": \"...\",
-          \"feedback\": [\"...\", \"...\", \"...\"]
+          "prompt": "...",
+          "choices": ["...", "...", "..."],
+          "answer": "...",
+          "feedback": ["...", "...", "..."]
         }}
       ],
-      \"metaphor\": \"...\",
-      \"mathConcept\": \"...\",
-      \"finished\": false,
-      \"score\": 0
+      "metaphor": "...",
+      "mathConcept": "...",
+      "finished": false,
+      "score": 0
     }}
     The math topic is: {math_topic}
     The story context is: {story_context}
@@ -104,51 +104,34 @@ advice_prompt = ChatPromptTemplate.from_messages([
 # Add a prompt for theoretical summary
 theory_prompt = ChatPromptTemplate.from_messages([
     ("system", """
-    You are an engaging math educator who excels at making abstract concepts concrete and accessible.
+    You are an engaging math educator who explains key ideas in a few words for 10-12 year olds.
     Your summaries should:
-    - Connect mathematical concepts to real-world applications
-    - Highlight how concepts emerged naturally through the story
-    - Use clear, age-appropriate language
-    - Include relevant examples and analogies
-    - Emphasize the student's journey of discovery
-    - Make connections between different mathematical ideas
-    - Inspire curiosity and further exploration
-    - Provide a comprehensive overview of all mathematical concepts encountered
-    - Explain how each concept builds upon previous ones
-    - Include practical tips for applying these concepts in real life
+    - Be very short and clear
+    - Use simple, age-appropriate language
+    - List only the most important concepts
     """),
     ("human", """
-    Create a comprehensive summary of the mathematical journey the student has completed.
-    Structure your response in these sections:
+    Write a very short summary of the main math ideas from this story for a 10-12 year old.
+    - List the key concepts you learned
+    - Keep it simple and fun
+    Math topic: {math_topic}
+    Story metaphors: {metaphors}
+    """)
+])
 
-    1. Overview
-    - A brief introduction to the mathematical concepts explored
-    - How these concepts connect to the story's narrative
-    - The student's role in discovering these concepts
-
-    2. Key Concepts
-    - Detailed explanation of each mathematical concept
-    - How each concept was discovered through the story
-    - Real-world applications and examples
-    - Visual or practical ways to understand each concept
-
-    3. Connections and Patterns
-    - How the different concepts relate to each other
-    - Common patterns and principles that emerged
-    - How these patterns appear in nature and daily life
-
-    4. Practical Applications
-    - Real-world situations where these concepts are useful
-    - Fun activities or experiments to explore these concepts further
-    - Tips for recognizing these concepts in everyday life
-
-    5. Next Steps
-    - Suggestions for further exploration
-    - Related mathematical topics to discover
-    - Resources for continued learning
-
-    Keep the language engaging and accessible for a 10-12 year old student.
-    Focus on how the student discovered these concepts through the story rather than just listing them.
+# Add a prompt for math principle summary
+principle_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are a math teacher who explains core mathematical principles in a simple, clear way for 10-12 year olds.
+    Your explanations should:
+    - Be short, clear, and support markdown and LaTeX-style formulas (use $...$ for math)
+    - Use a concrete example and a formula
+    - Focus on the main principle behind the story's math topic
+    - Make it memorable and practical
+    - Add a brief theoretical explanation
+    """),
+    ("human", """
+    Write a short, clear explanation of the main mathematical principle used in this adventure. Use markdown and LaTeX-style formulas (e.g., $x+3=7$). Give a concrete example and a formula. Add a brief theoretical explanation. For example, if the story is about equations, explain why multiplying both sides by the same number keeps the equation valid.
     Math topic: {math_topic}
     Story metaphors: {metaphors}
     """)
@@ -246,6 +229,12 @@ def progress_story():
                 "math_topic": math_topic,
                 "metaphors": "\n".join(metaphors)
             })
+            # Generate principle summary
+            principle_chain = principle_prompt | llm | StrOutputParser()
+            principle_summary = principle_chain.invoke({
+                "math_topic": math_topic,
+                "metaphors": "\n".join(metaphors)
+            })
 
             return jsonify({
                 'sceneText': advice,
@@ -257,6 +246,7 @@ def progress_story():
                 'answers': answers,
                 'step': step,
                 'theorySummary': theory_summary,
+                'principleSummary': principle_summary,
                 'metaphors': metaphors,
                 'mathConcepts': math_concepts
             })
