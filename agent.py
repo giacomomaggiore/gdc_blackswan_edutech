@@ -37,6 +37,9 @@ story_prompt = PromptTemplate(
     con tre risposte riguardo l'argomento {topic} e che aiuti a risolvere il problema
     di quel capitolo.
     
+    IMPORTANTE: Dopo le tre opzioni, aggiungi una riga che inizia con "CORRETTA:" 
+    seguita dal numero (1, 2 o 3) della risposta corretta.
+    
     Il capitolo deve essere lungo 50 parole.
     
     **Obiettivo:** Racconta il primo capitolo, crea suspense, e 
@@ -44,28 +47,23 @@ story_prompt = PromptTemplate(
 )
 
 follow_up_prompt = PromptTemplate(
-    input_variables=["user_name", "user_context", "topic", "last_chapter", "user_answer"],
+    input_variables=["user_name", "user_context", "topic", "last_chapter", "user_answer", "is_correct"],
     template="""L'utente ha risposto alla domanda contenuta in {last_chapter} con: "{user_answer}".
+    La risposta è {'corretta' if is_correct else 'non corretta'}.
 
-        Valuta se la risposta è corretta tra le tre opzioni proposte nel capitolo precedente. 
+    {'Se la risposta è corretta, il personaggio deve superare un ostacolo con successo' if is_correct else 'Se la risposta è sbagliata, il personaggio incontra una difficoltà, ma la storia continua comunque, mantenendo un tono costruttivo e motivante'}.
 
-        - Se la risposta è corretta, il personaggio deve superare un ostacolo
-        o avanzare nella storia con successo.
-        - Se è sbagliata, il personaggio incontra una difficoltà o deviazione,
-        ma la storia continua comunque, mantenendo un tono costruttivo e motivante.
+    Scrivi il secondo capitolo della storia (lunghezza: 50 parole), 
+    mantenendo lo stesso stile narrativo coinvolgente, l'ambientazione {user_context} 
+    e la coerenza con il primo capitolo.
 
-        Scrivi il secondo capitolo della storia (lunghezza: 50 parole), 
-        mantenendo lo stesso stile narrativo coinvolgente, l
-        'ambientazione {user_context} e la coerenza con il primo capitolo.
+    Alla fine del capitolo, poni **una nuova domanda a risposta multipla** (tre opzioni),
+    relativa all'argomento {topic}, che sia utile per superare il nuovo 
+    ostacolo o proseguire l'avventura.
 
-        Alla fine del capitolo, poni **una nuova domanda a risposta multipla** (tre opzioni),
-        relativa all'argomento {topic}, che sia utile per superare il nuovo 
-        ostacolo o proseguire l'avventura.
-
-        **Obiettivo:** Continua la storia valutando la risposta scrivendo il prossimo 
-        capitolo (100 parole max), crea 
-        una nuova situazione narrativa interessante, e termina con una nuova 
-        domanda matematica coerente."""
+    **Obiettivo:** Continua la storia valutando la risposta scrivendo il prossimo 
+    capitolo (100 parole max), crea una nuova situazione narrativa interessante, 
+    e termina con una nuova domanda matematica coerente."""
 )
 
 def node1(state: State):
@@ -95,7 +93,52 @@ def node3(state: State):
     user_answer = input("Quale risposta scegli? ")
     state["user_answer"] = user_answer
     
-    return {"user_answer": user_answer}
+    # Estrai le opzioni e la risposta corretta dal capitolo precedente
+    last_chapter = state["last_chapter"]
+    lines = last_chapter.split('\n')
+    
+    # Trova la riga che indica la risposta corretta
+    correct_answer_line = None
+    for line in lines:
+        if line.strip().startswith("CORRETTA:"):
+            correct_answer_line = line.strip()
+            break
+    
+    if correct_answer_line:
+        # Estrai il numero della risposta corretta
+        correct_option_number = correct_answer_line.split(":")[1].strip()
+        
+        # Trova l'opzione corrispondente
+        correct_option = None
+        for line in lines:
+            if line.strip().startswith(f"{correct_option_number})"):
+                correct_option = line.strip()
+                break
+        
+        # Valuta la risposta
+        is_correct = user_answer.strip() == correct_option.strip() if correct_option else False
+        
+        print("\n=== VALUTAZIONE RISPOSTA ===")
+        if is_correct:
+            print("✅ Risposta corretta! Procedi con l'avventura...")
+        else:
+            print("❌ Risposta non corretta. Continua comunque l'avventura...")
+            print(f"La risposta corretta era: {correct_option}")
+        print("===========================\n")
+        
+        # Aggiungi il risultato allo stato
+        return {
+            "user_answer": user_answer,
+            "is_correct": is_correct,
+            "correct_answer": correct_option
+        }
+    else:
+        print("\n⚠️ Non è stato possibile trovare la risposta corretta nel capitolo.")
+        return {
+            "user_answer": user_answer,
+            "is_correct": False,
+            "correct_answer": None
+        }
 
 def node4(state: State):
     # Create chain with the follow-up prompt
@@ -105,7 +148,8 @@ def node4(state: State):
         user_context=state["user_context"],
         topic=state["topic"],
         last_chapter=state["last_chapter"],
-        user_answer=state["user_answer"]
+        user_answer=state["user_answer"],
+        is_correct=state["is_correct"]
     )
     print("\n=== SECONDO CAPITOLO ===")
     print(story)
