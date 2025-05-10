@@ -45,15 +45,22 @@ llm = ChatGoogleGenerativeAI(
 
 # Create prompt templates for different stages
 story_prompt = ChatPromptTemplate.from_messages([
-    ("system", """Sei un narratore creativo ed educatore. Crea una storia coinvolgente che:
+    ("system", """Sei un narratore creativo ed educatore. Crea una storia breve e coinvolgente che:
     1. Si svolga nel contesto dato
     2. Abbia come protagonista il personaggio scelto
     3. Incorpori naturalmente il concetto matematico nella narrazione
     4. Crei una narrazione ramificata che può cambiare in base alle decisioni del personaggio
     5. Termini con un cliffhanger che porta a una sfida matematica
-    Mantieni la storia coinvolgente ed educativa, facendo sentire il lettore come se fosse il personaggio.
+    
+    Regole importanti:
+    - La storia deve essere concisa (massimo 200-300 parole)
+    - Ogni paragrafo deve essere breve e diretto
+    - Usa un linguaggio semplice e chiaro
+    - Mantieni la storia coinvolgente ed educativa
+    - Fai sentire il lettore come se fosse il personaggio
+    
     Scrivi la storia in italiano."""),
-    ("user", """Crea una storia con questi elementi:
+    ("user", """Crea una storia breve con questi elementi:
     Argomento Matematico: {math_topic}
     Contesto della Storia: {story_context}
     Personaggio: {character}""")
@@ -65,28 +72,27 @@ questions_prompt = ChatPromptTemplate.from_messages([
     2. Verifichino la comprensione del concetto matematico
     3. Siano coinvolgenti e contestuali
     4. Facciano pensare il lettore come se fosse il personaggio
-    5. Abbiano conseguenze chiare per diversi tipi di risposte
+    5. Abbiano conseguenze chiare per la risposta
+    
     Formatta ogni domanda esattamente così:
     Domanda 1: [testo della domanda che fa pensare il lettore come il personaggio]
     Risposta 1: [testo della risposta]
     Conseguenze:
     - Corretta: [cosa succede se la risposta è corretta]
-    - Parziale: [cosa succede se la risposta è parzialmente corretta]
     - Sbagliata: [cosa succede se la risposta è sbagliata]
     
     Domanda 2: [testo della domanda che fa pensare il lettore come il personaggio]
     Risposta 2: [testo della risposta]
     Conseguenze:
     - Corretta: [cosa succede se la risposta è corretta]
-    - Parziale: [cosa succede se la risposta è parzialmente corretta]
     - Sbagliata: [cosa succede se la risposta è sbagliata]
     
     Domanda 3: [testo della domanda che fa pensare il lettore come il personaggio]
     Risposta 3: [testo della risposta]
     Conseguenze:
     - Corretta: [cosa succede se la risposta è corretta]
-    - Parziale: [cosa succede se la risposta è parzialmente corretta]
     - Sbagliata: [cosa succede se la risposta è sbagliata]
+    
     Scrivi tutto in italiano."""),
     ("user", """Crea domande basate su:
     Storia: {story}
@@ -97,8 +103,7 @@ questions_prompt = ChatPromptTemplate.from_messages([
 continuation_prompt = ChatPromptTemplate.from_messages([
     ("system", """Sei un narratore creativo. Continua la storia in base alla risposta del personaggio:
     1. Se la risposta è corretta, continua con il miglior esito possibile
-    2. Se la risposta è parzialmente corretta, prendi un percorso diverso ma comunque positivo
-    3. Se la risposta è sbagliata, crea una situazione sfidante che il personaggio deve superare
+    2. Se la risposta è sbagliata, crea una situazione sfidante che il personaggio deve superare
     Mantieni la storia coinvolgente e la personalità del personaggio.
     Scrivi la continuazione in italiano."""),
     ("user", """Continua la storia basandoti su:
@@ -107,7 +112,6 @@ continuation_prompt = ChatPromptTemplate.from_messages([
     Risposta del Personaggio: {user_answer}
     Risposta Corretta: {correct_answer}
     È Corretta: {is_correct}
-    È Parzialmente Corretta: {is_partially_correct}
     Personaggio: {character}
     Argomento Matematico: {math_topic}""")
 ])
@@ -151,7 +155,7 @@ def generate_questions(state: State) -> State:
     questions = []
     current_question = None
     current_answer = None
-    current_consequences = {"correct": "", "partial": "", "wrong": ""}
+    current_consequences = {"correct": "", "wrong": ""}
     
     for line in questions_text.split('\n'):
         line = line.strip()
@@ -166,13 +170,11 @@ def generate_questions(state: State) -> State:
                     "consequences": current_consequences
                 })
             current_question = line.split(':', 1)[1].strip()
-            current_consequences = {"correct": "", "partial": "", "wrong": ""}
+            current_consequences = {"correct": "", "wrong": ""}
         elif line.startswith('Risposta'):
             current_answer = line.split(':', 1)[1].strip()
         elif line.startswith('- Corretta:'):
             current_consequences["correct"] = line.split(':', 1)[1].strip()
-        elif line.startswith('- Parziale:'):
-            current_consequences["partial"] = line.split(':', 1)[1].strip()
         elif line.startswith('- Sbagliata:'):
             current_consequences["wrong"] = line.split(':', 1)[1].strip()
     
@@ -191,7 +193,6 @@ def generate_questions(state: State) -> State:
             "answer": "La soluzione coinvolge " + state["math_topic"],
             "consequences": {
                 "correct": "Risolvi con successo il problema e continui il tuo viaggio.",
-                "partial": "Fai alcuni progressi ma affronti nuove sfide.",
                 "wrong": "Incontri un ostacolo che richiede un approccio diverso."
             }
         }]
@@ -206,15 +207,27 @@ def get_user_answer(state: State) -> State:
             "answer": "La soluzione coinvolge " + state["math_topic"],
             "consequences": {
                 "correct": "Risolvi con successo il problema e continui il tuo viaggio.",
-                "partial": "Fai alcuni progressi ma affronti nuove sfide.",
                 "wrong": "Incontri un ostacolo che richiede un approccio diverso."
             }
         }]
     
-    print("\nStoria:", state["story"])
+    print("\n" + "="*50)
+    print("STORY:", state["story"])
+    print("="*50)
     print(f"\nCome {state['character']}, devi rispondere a questa domanda:")
-    print("Domanda:", state["questions"][0]["question"])
-    user_answer = input(f"Risposta di {state['character']}: ")
+    print("\nDOMANDA:", state["questions"][0]["question"])
+    print("\nInserisci la tua risposta (come se fossi il personaggio):")
+    
+    while True:
+        try:
+            user_answer = input(f"\nRisposta di {state['character']}: ").strip()
+            if user_answer:  # Verifica che la risposta non sia vuota
+                break
+            print("La risposta non può essere vuota. Prova di nuovo.")
+        except KeyboardInterrupt:
+            print("\nProgramma interrotto dall'utente.")
+            exit(0)
+    
     return {**state, "user_answer": user_answer}
 
 def evaluate_answer(state: State) -> State:
@@ -225,13 +238,10 @@ def evaluate_answer(state: State) -> State:
     # Check if the answer is correct
     is_correct = correct_answer in user_answer or user_answer in correct_answer
     
-    # Check if the answer is partially correct
-    is_partially_correct = any(word in user_answer for word in correct_answer.split())
-    
     return {
         **state,
         "is_correct": is_correct,
-        "is_partially_correct": is_partially_correct and not is_correct
+        "is_partially_correct": False  # Manteniamo questo campo per compatibilità
     }
 
 def continue_story(state: State) -> State:
@@ -242,7 +252,6 @@ def continue_story(state: State) -> State:
         "user_answer": state["user_answer"],
         "correct_answer": state["questions"][0]["answer"],
         "is_correct": state["is_correct"],
-        "is_partially_correct": state["is_partially_correct"],
         "character": state["character"],
         "math_topic": state["math_topic"]
     })
