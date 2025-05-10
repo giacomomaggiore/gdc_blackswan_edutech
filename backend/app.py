@@ -44,6 +44,7 @@ story_prompt = ChatPromptTemplate.from_messages([
     - Maintain a consistent tone and style throughout the narrative
     - Include subtle metaphors that help students understand abstract concepts
     - Balance entertainment with educational value
+    - The story must always stay focused on the math topic: {math_topic}.
     """),
     ("human", """
     Create a short, simple STEM story scene for a student (age 10-12).
@@ -55,6 +56,7 @@ story_prompt = ChatPromptTemplate.from_messages([
     - Provide 3 possible approaches or solutions, only one of which is correct.
     - For each choice, provide a brief feedback string that guides the student's thinking.
     - Include a subtle metaphor that relates the story situation to the math concept, but don't explicitly state the connection.
+    - The story must always stay focused on the math topic: {math_topic}.
     - Return ONLY a JSON object in this format:
     {{
       "sceneText": "...",
@@ -154,7 +156,9 @@ def generate_story():
         data = request.json
         story_context = data.get('storyContext', 'fantasy world')
         character = data.get('character', 'adventurer')
-        math_topic = data.get('mathTopic', 'algebra')
+        math_topic = data.get('mathTopic')
+        if not math_topic or not math_topic.strip():
+            math_topic = 'algebra'
         step = 1
         chain = story_prompt | llm | StrOutputParser()
         story_json = chain.invoke({
@@ -180,6 +184,7 @@ def generate_story():
         scene['finished'] = False
         scene['metaphors'] = [scene.get('metaphor', '')]
         scene['mathConcepts'] = [scene.get('mathConcept', '')]
+        scene['storyHistory'] = [scene.get('sceneText', '')]
         return jsonify(scene)
     except Exception as e:
         logger.error(f"Error in generate_story: {str(e)}")
@@ -191,13 +196,14 @@ def progress_story():
         data = request.json
         story_context = data.get('storyContext', 'fantasy world')
         character = data.get('character', 'adventurer')
-        math_topic = data.get('mathTopic', 'algebra')
+        math_topic = data.get('mathTopic')
         prev_scene = data.get('currentScene', {})
         step = prev_scene.get('step', 1) + 1
         score = prev_scene.get('score', 0)
         answers = prev_scene.get('answers', [])
         metaphors = prev_scene.get('metaphors', [])
         math_concepts = prev_scene.get('mathConcepts', [])
+        story_history = prev_scene.get('storyHistory', [])
         user_choice = data.get('choice')
         correct_answer = prev_scene.get('questions', [{}])[0].get('answer')
         question_prompt = prev_scene.get('questions', [{}])[0].get('prompt')
@@ -210,6 +216,9 @@ def progress_story():
             })
             if user_choice == correct_answer:
                 score += 1
+        # Track story history
+        if prev_scene.get('sceneText'):
+            story_history.append(prev_scene.get('sceneText'))
         # If finished
         if step > 5:
             # Build missed questions list
@@ -227,15 +236,18 @@ def progress_story():
             theory_chain = theory_prompt | llm | StrOutputParser()
             theory_summary = theory_chain.invoke({
                 "math_topic": math_topic,
-                "metaphors": "\n".join(metaphors)
+                "metaphors": "\n".join(metaphors),
+                "story_history": "\n".join(story_history),
+                "answers": json.dumps(answers)
             })
             # Generate principle summary
             principle_chain = principle_prompt | llm | StrOutputParser()
             principle_summary = principle_chain.invoke({
                 "math_topic": math_topic,
-                "metaphors": "\n".join(metaphors)
+                "metaphors": "\n".join(metaphors),
+                "story_history": "\n".join(story_history),
+                "answers": json.dumps(answers)
             })
-
             return jsonify({
                 'sceneText': advice,
                 'imageRef': '',
@@ -248,7 +260,8 @@ def progress_story():
                 'theorySummary': theory_summary,
                 'principleSummary': principle_summary,
                 'metaphors': metaphors,
-                'mathConcepts': math_concepts
+                'mathConcepts': math_concepts,
+                'storyHistory': story_history
             })
         # Otherwise, generate next scene
         chain = story_prompt | llm | StrOutputParser()
@@ -274,6 +287,7 @@ def progress_story():
         scene['finished'] = False
         scene['metaphors'] = metaphors + [scene.get('metaphor', '')]
         scene['mathConcepts'] = math_concepts + [scene.get('mathConcept', '')]
+        scene['storyHistory'] = story_history + [scene.get('sceneText', '')]
         return jsonify(scene)
     except Exception as e:
         logger.error(f"Error in progress_story: {str(e)}")
