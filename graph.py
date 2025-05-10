@@ -6,11 +6,13 @@ from langchain.chat_models import init_chat_model
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+#from immgen import generate_image
+import datetime
 
 # USER INFO
-user_name = "un nago guerriero"
-user_context = "mordor del signore degli anelli"
-topic = "teorema di pitagora"
+user_name = "giugiu"
+user_context = "la quant più grande del mondo"
+topic = "romanzo apocalittico"
 
 os.environ["GOOGLE_API_KEY"] = "AIzaSyC1bXxZ4447S7p3RfupwWPjLVEIuLR3Vtg"
 

@@ -4,7 +4,6 @@ from typing import Dict
 import uuid
 
 from langgraph.graph import StateGraph, START
-# Importa qui tutte le tue definizioni di nodi e grafo già esistenti
 from graph import graph  # <--- metti qui il tuo codice o importalo correttamente
 
 app = FastAPI(title="Story Quiz API")
