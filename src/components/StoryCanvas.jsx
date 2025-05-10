@@ -287,13 +287,14 @@ function StoryCanvas({ scene, onChoice }) {
                   <h3 className="text-xl font-bold text-yellow-300 mb-2 text-center">
                     Main Mathematical Principle
                   </h3>
-                  <ReactMarkdown
-                    remarkPlugins={[remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    className="prose prose-invert prose-p:text-yellow-100 prose-strong:text-yellow-300 mx-auto text-center"
-                  >
-                    {currentScene.principleSummary}
-                  </ReactMarkdown>
+                  <div className="prose prose-invert prose-p:text-yellow-100 prose-strong:text-yellow-300 mx-auto text-center">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
+                      {currentScene.principleSummary}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               )}
 
