@@ -32,14 +32,29 @@ llm = ChatGoogleGenerativeAI(
 
 # Prompt templates
 story_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are a masterful storyteller and math educator who specializes in creating engaging, educational stories for young students.
+    Your stories should:
+    - Be immersive and captivating, drawing students into the narrative
+    - Naturally integrate mathematical concepts without explicitly stating them
+    - Encourage students to discover and formulate problems themselves
+    - Use rich, descriptive language that brings the story world to life
+    - Create meaningful connections between story elements and mathematical thinking
+    - Maintain a consistent tone and style throughout the narrative
+    - Be age-appropriate and accessible for 10-12 year old students
+    - Include subtle metaphors that help students understand abstract concepts
+    - Balance entertainment with educational value
+    """),
     ("human", """
-    You are a creative storyteller and math educator. Create a short, engaging STEM story scene for a student (age 10-12).
-    - The story should be concise (max 4 sentences), immersive, and include a math challenge as part of the narrative.
-    - The story should feel like it is evolving and continuous, not a disconnected scene. Reference previous events and maintain narrative continuity.
-    - At the end, ask a math question as part of the story, not as a quiz.
-    - Provide 3 answer choices, only one of which is correct.
-    - For each choice, provide a brief feedback string.
-    - Include a metaphor that relates the story situation to the math concept.
+    Create an engaging STEM story scene for a student (age 10-12).
+    - For the first scene (step 1), create a longer introduction (6-8 sentences) that sets up the world, characters, and initial situation. This should be more descriptive and immersive.
+    - For subsequent scenes, keep them concise (4-5 sentences) and focus on the evolving narrative.
+    - The story should feel continuous and connected, referencing previous events and maintaining narrative continuity.
+    - Instead of explicitly stating a math problem, present a situation that requires mathematical thinking. Let the student identify and formulate the problem themselves.
+    - At the end of each scene, present a situation that requires mathematical thinking, but don't explicitly state it as a math problem.
+    - Provide 3 possible approaches or solutions, only one of which is correct.
+    - For each choice, provide a brief feedback string that guides the student's thinking.
+    - Include a subtle metaphor that relates the story situation to the math concept, but don't explicitly state the connection.
     - Return ONLY a JSON object in this format:
     {{
       \"sceneText\": \"...\",
@@ -61,14 +76,26 @@ story_prompt = ChatPromptTemplate.from_messages([
     The math topic is: {math_topic}
     The story context is: {story_context}
     The main character is: {character}
+    The current step is: {step}
     Respond with ONLY the JSON object, no explanation or extra text.
     """)
 ])
 
 # Add a prompt for advice generation
 advice_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are a supportive and encouraging math tutor who specializes in helping students understand mathematical concepts through their own discoveries.
+    Your feedback should:
+    - Focus on the student's problem-solving approach rather than just the final answer
+    - Highlight the positive aspects of their thinking
+    - Guide them toward deeper understanding
+    - Connect their attempts to the underlying mathematical concepts
+    - Maintain an encouraging and positive tone
+    - Provide concrete, actionable advice for improvement
+    """),
     ("human", """
-    You are a helpful math tutor. Given a list of missed questions, the student's answers, and the correct answers, write a short, encouraging summary for the student. For each missed question, provide a concrete explanation of the math concept and advice on how to improve. End with a positive message.
+    Given a list of missed questions, the student's answers, and the correct answers, write a short, encouraging summary for the student. For each missed question, provide a concrete explanation of the math concept and advice on how to improve. End with a positive message.
+    Focus on the student's problem-solving approach rather than just the final answer.
     Missed questions:
     {missed}
     """)
@@ -76,14 +103,52 @@ advice_prompt = ChatPromptTemplate.from_messages([
 
 # Add a prompt for theoretical summary
 theory_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are an engaging math educator who excels at making abstract concepts concrete and accessible.
+    Your summaries should:
+    - Connect mathematical concepts to real-world applications
+    - Highlight how concepts emerged naturally through the story
+    - Use clear, age-appropriate language
+    - Include relevant examples and analogies
+    - Emphasize the student's journey of discovery
+    - Make connections between different mathematical ideas
+    - Inspire curiosity and further exploration
+    - Provide a comprehensive overview of all mathematical concepts encountered
+    - Explain how each concept builds upon previous ones
+    - Include practical tips for applying these concepts in real life
+    """),
     ("human", """
-    You are a math educator. Create a clear, concise summary of the key theoretical concepts covered in this story.
-    Include:
-    1. The main mathematical concepts
-    2. How they were represented in the story
-    3. Real-world applications
-    4. Key formulas or principles (if applicable)
-    Keep it engaging and accessible for a 10-12 year old student.
+    Create a comprehensive summary of the mathematical journey the student has completed.
+    Structure your response in these sections:
+
+    1. Overview
+    - A brief introduction to the mathematical concepts explored
+    - How these concepts connect to the story's narrative
+    - The student's role in discovering these concepts
+
+    2. Key Concepts
+    - Detailed explanation of each mathematical concept
+    - How each concept was discovered through the story
+    - Real-world applications and examples
+    - Visual or practical ways to understand each concept
+
+    3. Connections and Patterns
+    - How the different concepts relate to each other
+    - Common patterns and principles that emerged
+    - How these patterns appear in nature and daily life
+
+    4. Practical Applications
+    - Real-world situations where these concepts are useful
+    - Fun activities or experiments to explore these concepts further
+    - Tips for recognizing these concepts in everyday life
+
+    5. Next Steps
+    - Suggestions for further exploration
+    - Related mathematical topics to discover
+    - Resources for continued learning
+
+    Keep the language engaging and accessible for a 10-12 year old student.
+    Focus on how the student discovered these concepts through the story rather than just listing them.
     Math topic: {math_topic}
     Story metaphors: {metaphors}
     """)
@@ -107,11 +172,13 @@ def generate_story():
         story_context = data.get('storyContext', 'fantasy world')
         character = data.get('character', 'adventurer')
         math_topic = data.get('mathTopic', 'algebra')
+        step = 1
         chain = story_prompt | llm | StrOutputParser()
         story_json = chain.invoke({
             "math_topic": math_topic,
             "story_context": story_context,
-            "character": character
+            "character": character,
+            "step": step
         })
         try:
             scene = json.loads(story_json)
@@ -125,7 +192,7 @@ def generate_story():
         # Initialize progress tracking
         scene['progress'] = 0.2
         scene['score'] = 0
-        scene['step'] = 1
+        scene['step'] = step
         scene['answers'] = []
         scene['finished'] = False
         scene['metaphors'] = [scene.get('metaphor', '')]
@@ -198,7 +265,8 @@ def progress_story():
         story_json = chain.invoke({
             "math_topic": math_topic,
             "story_context": story_context,
-            "character": character
+            "character": character,
+            "step": step
         })
         try:
             scene = json.loads(story_json)

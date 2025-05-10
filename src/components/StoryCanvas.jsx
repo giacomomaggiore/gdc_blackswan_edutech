@@ -162,23 +162,6 @@ function StoryCanvas({ scene, onChoice }) {
             </motion.p>
           )}
 
-          {/* Math Concept and Metaphor */}
-          {!currentScene.finished && currentScene.mathConcept && (
-            <motion.div
-              variants={fadeInUp}
-              className="bg-white/5 rounded-xl p-6 border border-white/10"
-            >
-              <h3 className="text-xl font-semibold text-indigo-200 mb-2">Math Concept</h3>
-              <p className="text-white mb-4">{currentScene.mathConcept}</p>
-              {currentScene.metaphor && (
-                <>
-                  <h3 className="text-xl font-semibold text-indigo-200 mb-2">Story Metaphor</h3>
-                  <p className="text-white italic">{currentScene.metaphor}</p>
-                </>
-              )}
-            </motion.div>
-          )}
-
           {/* Feedback */}
           <AnimatePresence>
             {showFeedback && feedback && (
@@ -262,17 +245,24 @@ function StoryCanvas({ scene, onChoice }) {
                 </motion.div>
               )}
 
-              {/* Story Metaphors */}
+              {/* Story Journey and Mathematical Concepts */}
               {currentScene.metaphors && currentScene.metaphors.length > 0 && (
                 <motion.div
                   variants={fadeInUp}
                   className="mt-8 bg-white/10 rounded-xl p-6 border border-white/20"
                 >
-                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">Story Metaphors</h3>
-                  <div className="space-y-4">
+                  <h3 className="text-2xl font-bold text-indigo-200 mb-4">Your Mathematical Journey</h3>
+                  <div className="space-y-6">
                     {currentScene.metaphors.map((metaphor, index) => (
-                      <div key={index} className="bg-white/5 rounded-lg p-4">
-                        <p className="text-white italic">{metaphor}</p>
+                      <div key={index} className="bg-white/5 rounded-lg p-6">
+                        <h4 className="text-xl font-semibold text-pink-200 mb-2">Chapter {index + 1}</h4>
+                        <p className="text-white italic mb-3">{metaphor}</p>
+                        {currentScene.mathConcepts[index] && (
+                          <p className="text-white">
+                            <span className="text-indigo-200 font-semibold">Mathematical Concept: </span>
+                            {currentScene.mathConcepts[index]}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

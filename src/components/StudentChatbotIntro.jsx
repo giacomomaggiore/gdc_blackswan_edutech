@@ -162,97 +162,95 @@ function StudentChatbotIntro({ onComplete }) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="max-w-2xl mx-auto bg-white/10 backdrop-blur-lg rounded-xl p-8 shadow-xl"
-    >
-      <motion.h2 
-        className="text-2xl font-bold mb-6 text-center"
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 py-12 px-2">
+      <motion.div
+        className="max-w-xl w-full mx-auto bg-white/10 backdrop-blur-lg rounded-3xl p-10 shadow-2xl space-y-8 border-2 border-white/20"
+        initial={{ scale: 1 }}
+        animate={{ scale: [1, 1.04, 0.97, 1.03, 1] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        style={{ minHeight: '60vh' }}
       >
-        Welcome to Math Adventures!
-      </motion.h2>
-
-      {showTypingAnimation && (
-        <motion.div
-          className="mb-8 text-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <motion.h2 
+          className="text-2xl font-bold mb-6 text-center"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 15 }}
         >
+          Welcome to Math Adventures!
+        </motion.h2>
+
+        {showTypingAnimation && (
           <motion.div
-            className="h-4 bg-white/20 rounded-full overflow-hidden"
-            variants={typingAnimation}
-            initial="initial"
-            animate="animate"
-          />
-        </motion.div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div 
-            key={currentQuestion}
-            custom={direction}
-            variants={pageTransition}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="space-y-4"
+            className="mb-8 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
-            <motion.label 
-              className="block text-lg"
-              variants={fadeInUp}
-            >
-              {introData.questions[currentQuestion]}
-            </motion.label>
-            {currentQuestion === 3 ? (
-              <motion.select
-                value={answers[currentQuestion]}
-                onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
-                className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
-                required
-                variants={fadeInUp}
-                transition={{ delay: 0.1 }}
-              >
-                <option value="">Select a math topic</option>
-                <option value="algebra">Algebra</option>
-                <option value="geometry">Geometry</option>
-                <option value="calculus">Calculus</option>
-                <option value="statistics">Statistics</option>
-                <option value="trigonometry">Trigonometry</option>
-              </motion.select>
-            ) : (
-              <motion.textarea
-                value={answers[currentQuestion]}
-                onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
-                className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
-                rows="4"
-                placeholder="Tell us about yourself..."
-                required
-                variants={fadeInUp}
-                transition={{ delay: 0.1 }}
-              />
-            )}
+            <motion.div
+              className="h-4 bg-white/20 rounded-full overflow-hidden"
+              variants={typingAnimation}
+              initial="initial"
+              animate="animate"
+            />
           </motion.div>
-        </AnimatePresence>
-        <motion.button
-          type="submit"
-          className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold transition-colors"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          variants={fadeInUp}
-          transition={{ delay: 0.2 }}
-        >
-          {currentQuestion < introData.questions.length - 1 ? 'Next Question' : 'Start Adventure'}
-        </motion.button>
-      </form>
-    </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div 
+              key={currentQuestion}
+              custom={direction}
+              variants={pageTransition}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="space-y-4"
+            >
+              <motion.label 
+                className="block text-lg"
+                variants={fadeInUp}
+              >
+                {introData.questions[currentQuestion]}
+              </motion.label>
+              {currentQuestion === 3 ? (
+                <motion.input
+                  type="text"
+                  value={answers[currentQuestion]}
+                  onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
+                  className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
+                  placeholder="e.g., fractions, probability, patterns in nature..."
+                  required
+                  variants={fadeInUp}
+                  transition={{ delay: 0.1 }}
+                />
+              ) : (
+                <motion.textarea
+                  value={answers[currentQuestion]}
+                  onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
+                  className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
+                  rows="4"
+                  placeholder="Tell us about yourself..."
+                  required
+                  variants={fadeInUp}
+                  transition={{ delay: 0.1 }}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+          <motion.button
+            type="submit"
+            className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold transition-colors"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            variants={fadeInUp}
+            transition={{ delay: 0.2 }}
+          >
+            {currentQuestion < introData.questions.length - 1 ? 'Next Question' : 'Start Adventure'}
+          </motion.button>
+        </form>
+      </motion.div>
+    </div>
   );
 }
 
