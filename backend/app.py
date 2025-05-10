@@ -3,267 +3,140 @@ from flask_cors import CORS
 import os
 from dotenv import load_dotenv
 import logging
-from typing import Dict, Any, List, Optional
-from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.tools import tool
-from langchain.memory import ConversationBufferMemory
-from langchain_core.output_parsers import StrOutputParser
-import json
+from langchain.prompts import ChatPromptTemplate
+from langchain.schema import StrOutputParser
+import json, re
 
-# === load env & configure Flask ===
+# Load environment variables
 load_dotenv('api.env')
+
 app = Flask(__name__)
 CORS(app)
+
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === LLM setup ===
+# LangChain Gemini model
 api_key = os.getenv('GEMINI_API_KEY')
-if not api_key:
-    logger.error("GEMINI_API_KEY not found in environment variables.")
+llm = ChatGoogleGenerativeAI(
+    model="models/gemini-2.0-flash",
+    temperature=0.9,
+    google_api_key=api_key,
+    max_output_tokens=2048,
+    top_p=0.8,
+    top_k=40,
+    convert_system_message_to_human=True
+)
 
-try:
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        temperature=0.8,
-        google_api_key=api_key,
-        max_output_tokens=2048,
-        top_p=0.8,
-        top_k=40,
-        convert_system_message_to_human=True
-    )
-    logger.info("Google Gemini LLM initialized successfully.")
-except Exception as e:
-    logger.error(f"Failed to initialize LLM: {e}")
-    llm = None
-
-# === Tools ===
-@tool
-def generate_story_chapter(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate a new chapter of the story based on the current state."""
-    try:
-        logger.info("Generating story chapter...")
-        prompt = f"""You are a masterful storyteller and math educator who creates engaging, educational stories.
-        Create a story chapter that:
-        - Is immersive and captivating
-        - Integrates mathematical concepts naturally
-        - Uses clear, simple language for 10-12 year olds
-        - Creates meaningful connections between story elements and mathematical thinking
-        - Includes a question at the end that tests understanding of the math concept
-
-        Generate a story chapter for:
-        Character: {state['user_name']}
-        Context: {state['user_context']}
-        Math Topic: {state['topic']}
-        Previous Story: {state.get('story_history', [])}
-        Current Chapter: {state.get('counter', 0)}
-
-        Return the response in this JSON format:
+# Prompt templates
+story_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are a masterful storyteller and math educator who specializes in creating engaging, educational stories for young students.
+    Your stories should:
+    - Be immersive and captivating, drawing students into the narrative
+    - Naturally integrate mathematical concepts without explicitly stating them
+    - Encourage students to discover and formulate problems themselves
+    - Use clear, simple, age-appropriate language for 10-12 year olds
+    - Keep the story concise and easy to follow
+    - Create meaningful connections between story elements and mathematical thinking
+    - Maintain a consistent tone and style throughout the narrative
+    - Include subtle metaphors that help students understand abstract concepts
+    - Balance entertainment with educational value
+    - Ensure all chapters are related to the chosen math topic
+    - Make the story coherent with the user's choice and previous chapters
+    """),
+    ("human", """
+    Create a short, simple STEM story scene for a student (age 10-12).
+    - For the first scene (step 1), write a brief introduction (3-4 sentences) that sets up the world, characters, and initial situation. Make it easy to understand.
+    - For subsequent scenes, keep them very concise (2-3 sentences) and focus on the evolving narrative.
+    - The story should feel continuous and connected, referencing previous events and maintaining narrative continuity.
+    - Instead of explicitly stating a math problem, present a situation that requires mathematical thinking. Let the student identify and formulate the problem themselves.
+    - At the end of each scene, present a situation that requires mathematical thinking, but don't explicitly state it as a math problem.
+    - Provide 3 possible approaches or solutions, only one of which is correct.
+    - For each choice, provide a brief feedback string that guides the student's thinking.
+    - Include a subtle metaphor that relates the story situation to the math concept, but don't explicitly state the connection.
+    - Return ONLY a JSON object in this format:
+    {{
+      "sceneText": "...",
+      "progress": 0.2,
+      "questions": [
         {{
-            "story": "The story chapter text",
-            "question": "The question text",
-            "choices": ["choice a", "choice b", "choice c"],
-            "correct_answer": "The correct choice",
-            "metaphor": "A metaphor connecting the story to the math concept"
-        }}"""
-        
-        logger.info("Invoking LLM...")
-        response = llm([HumanMessage(content=prompt)])
-        response_text = response.content
-        
-        logger.info(f"Raw LLM response: {response_text}")
-        
-        # Clean the response and parse JSON
-        response_text = response_text.replace("```json", "").replace("```", "").strip()
-        story_data = json.loads(response_text)
-        
-        logger.info(f"Parsed story data: {story_data}")
-        
-        # Update state
-        state["story"] = story_data["story"]
-        state["last_chapter"] = story_data["story"]
-        state.setdefault("story_history", []).append(story_data["story"])
-        state.setdefault("metaphors", []).append(story_data["metaphor"])
-        state["correct_answer"] = story_data["correct_answer"]
-        
-        return story_data
-        
-    except Exception as e:
-        logger.error(f"Error in generate_story_chapter: {str(e)}", exc_info=True)
-        return {
-            "error": "Failed to generate story chapter",
-            "details": str(e)
-        }
+          "prompt": "...",
+          "choices": ["...", "...", "..."],
+          "answer": "...",
+          "feedback": ["...", "...", "..."]
+        }}
+      ],
+      "metaphor": "...",
+      "mathConcept": "...",
+      "finished": false,
+      "score": 0
+    }}
+    The math topic is: {math_topic}
+    The story context is: {story_context}
+    The main character is: {character}
+    The current step is: {step}
+    Respond with ONLY the JSON object, no explanation or extra text.
+    """)
+])
 
-@tool
-def check_answer(state: Dict[str, Any], answer: str) -> Dict[str, Any]:
-    """Check if the user's answer is correct and update the score."""
-    try:
-        if answer.lower() == state.get("correct_answer", "").lower():
-            state["score"] = state.get("score", 0) + 1
-            return {"correct": True, "feedback": "Great job! That's correct!"}
-        return {"correct": False, "feedback": "Not quite right. Try again!"}
-    except Exception as e:
-        logger.error(f"Error in check_answer: {str(e)}", exc_info=True)
-        return {
-            "error": "Failed to check answer",
-            "details": str(e)
-        }
+# Add a prompt for advice generation
+advice_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are a supportive and encouraging math tutor who specializes in helping students understand mathematical concepts through their own discoveries.
+    Your feedback should:
+    - Focus on the student's problem-solving approach rather than just the final answer
+    - Highlight the positive aspects of their thinking
+    - Guide them toward deeper understanding
+    - Connect their attempts to the underlying mathematical concepts
+    - Maintain an encouraging and positive tone
+    - Provide concrete, actionable advice for improvement
+    """),
+    ("human", """
+    Given a list of missed questions, the student's answers, and the correct answers, write a short, encouraging summary for the student. For each missed question, provide a concrete explanation of the math concept and advice on how to improve. End with a positive message.
+    Focus on the student's problem-solving approach rather than just the final answer.
+    Missed questions:
+    {missed}
+    """)
+])
 
-# === Agent Setup ===
-def create_story_agent():
-    tools = [generate_story_chapter, check_answer]
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a story-telling agent that creates educational math stories.
-        Your goal is to create an engaging story that teaches math concepts through narrative.
-        
-        You have access to these tools:
-        1. generate_story_chapter: Generates a new chapter of the story
-        2. check_answer: Checks if a user's answer is correct
-        
-        When using generate_story_chapter:
-        - Pass the current state as the first argument
-        - The state should include: user_name, user_context, topic, story_history, counter
-        
-        When using check_answer:
-        - Pass the current state as the first argument
-        - Pass the user's answer as the second argument
-        
-        Always maintain the story's continuity and ensure the math concepts are properly integrated."""),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
-    
-    agent = create_openai_functions_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+# Add a prompt for theoretical summary
+theory_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are an engaging math educator who explains key ideas in a few words for 10-12 year olds.
+    Your summaries should:
+    - Be very short and clear
+    - Use simple, age-appropriate language
+    - List only the most important concepts
+    """),
+    ("human", """
+    Write a very short summary of the main math ideas from this story for a 10-12 year old.
+    - List the key concepts you learned
+    - Keep it simple and fun
+    Math topic: {math_topic}
+    Story metaphors: {metaphors}
+    """)
+])
 
-# === Flask Routes ===
-@app.route('/api/generate-story', methods=['POST'])
-def generate_story():
-    try:
-        logger.info("Starting story generation...")
-        request_data = request.json or {}
-        logger.info(f"Received request data: {request_data}")
-        
-        # Initialize state
-        state = {
-            "user_name": request_data.get("character", "adventurer"),
-            "user_context": request_data.get("storyContext", "fantasy world"),
-            "topic": request_data.get("mathTopic", "algebra"),
-            "story": "",
-            "story_history": [],
-            "counter": 0,
-            "score": 0
-        }
-        
-        logger.info(f"Initial state: {state}")
-        
-        # Create and invoke agent
-        agent = create_story_agent()
-        result = agent.invoke({
-            "input": "Generate the first chapter of the story",
-            "chat_history": [],
-            "state": state
-        })
-        
-        logger.info(f"Agent result: {result}")
-        
-        # Format response
-        response = {
-            "sceneText": state["story"],
-            "imageRef": "",
-            "progress": 0.2,
-            "questions": [{
-                "prompt": result.get("question", "What would you like to do next?"),
-                "choices": result.get("choices", ["Option A", "Option B", "Option C"]),
-                "answer": result.get("correct_answer", "Option A"),
-                "feedback": ["Try again!", "Not quite right!", "Keep going!"]
-            }],
-            "metaphor": result.get("metaphor", ""),
-            "mathConcept": state["topic"],
-            "finished": False,
-            "score": state["score"],
-            "state": state
-        }
-        
-        logger.info("Successfully generated story response")
-        return jsonify(response)
-        
-    except Exception as e:
-        logger.error(f"Error in generate_story: {str(e)}", exc_info=True)
-        return jsonify({
-            "error": "Failed to generate story",
-            "details": str(e)
-        }), 500
+# Add a prompt for math principle summary
+principle_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+    You are a math teacher who explains core mathematical principles in a simple, clear way for 10-12 year olds.
+    Your explanations should:
+    - Be short and clear
+    - Focus on one very memorable law about the math topic
+    - Make it memorable and practical
+    - Add a brief theoretical explanation
+    """),
+    ("human", """
+    Math topic: {math_topic}
+    Write a short, clear explanation of the main mathematical principle used. Focus on one very memorable law about the math topic. Add a brief theoretical explanation. For example, if the story is about equations, explain why multiplying both sides by the same number keeps the equation valid.
 
-@app.route('/api/progress-story', methods=['POST'])
-def progress_story():
-    try:
-        data = request.json or {}
-        logger.info(f"Received progress request: {data}")
-        
-        # Rehydrate state
-        state = {
-            **data.get("state", {}),
-            "user_answer": data.get("choice", "")
-        }
-        
-        # Create and invoke agent
-        agent = create_story_agent()
-        
-        # Check answer
-        answer_result = agent.invoke({
-            "input": f"Check if the answer '{state['user_answer']}' is correct",
-            "chat_history": [],
-            "state": state
-        })
-        
-        if answer_result.get("correct"):
-            state["score"] += 1
-        
-        # Generate next chapter if not finished
-        if state["counter"] < 2:
-            chapter_result = agent.invoke({
-                "input": "Generate the next chapter of the story",
-                "chat_history": [],
-                "state": state
-            })
-            
-            state["counter"] += 1
-            state["story_history"].append(chapter_result["story"])
-            state["story"] = chapter_result["story"]
-            
-            response = {
-                "sceneText": chapter_result["story"],
-                "questions": [{
-                    "prompt": chapter_result["question"],
-                    "choices": chapter_result["choices"],
-                    "answer": chapter_result["correct_answer"],
-                    "feedback": ["Try again!", "Not quite right!", "Keep going!"]
-                }],
-                "metaphor": chapter_result["metaphor"],
-                "mathConcept": state["topic"],
-                "progress": (state["counter"] + 1) / 3,
-                "finished": state["counter"] >= 2,
-                "score": state["score"],
-                "state": state
-            }
-            
-            return jsonify(response)
-            
-        return jsonify({"error": "Story already finished"}), 400
-        
-    except Exception as e:
-        logger.error(f"Error in progress_story: {str(e)}", exc_info=True)
-        return jsonify({
-            "error": "Failed to progress story",
-            "details": str(e)
-        }), 500
+    Story metaphors: {metaphors}
+    """)
+])
 
 @app.route('/api/intro', methods=['GET'])
 def get_intro():
@@ -276,9 +149,141 @@ def get_intro():
         ]
     })
 
+@app.route('/api/generate-story', methods=['POST'])
+def generate_story():
+    try:
+        data = request.json
+        story_context = data.get('storyContext', 'fantasy world')
+        character = data.get('character', 'adventurer')
+        math_topic = data.get('mathTopic', 'algebra')
+        step = 1
+        chain = story_prompt | llm | StrOutputParser()
+        story_json = chain.invoke({
+            "math_topic": math_topic,
+            "story_context": story_context,
+            "character": character,
+            "step": step
+        })
+        try:
+            scene = json.loads(story_json)
+        except Exception:
+            match = re.search(r'({[\s\S]*})', story_json)
+            if match:
+                scene = json.loads(match.group(1))
+            else:
+                logger.error(f"Failed to extract JSON from: {story_json}")
+                return jsonify({'error': 'Failed to parse story from LLM.', 'llm_raw_response': story_json}), 500
+        # Initialize progress tracking
+        scene['progress'] = 0.2
+        scene['score'] = 0
+        scene['step'] = step
+        scene['answers'] = []
+        scene['finished'] = False
+        scene['metaphors'] = [scene.get('metaphor', '')]
+        scene['mathConcepts'] = [scene.get('mathConcept', '')]
+        # Remove imageRef from the response
+        if 'imageRef' in scene:
+            del scene['imageRef']
+        return jsonify(scene)
+    except Exception as e:
+        logger.error(f"Error in generate_story: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/progress-story', methods=['POST'])
+def progress_story():
+    try:
+        data = request.json
+        story_context = data.get('storyContext', 'fantasy world')
+        character = data.get('character', 'adventurer')
+        math_topic = data.get('mathTopic', 'algebra')
+        prev_scene = data.get('currentScene', {})
+        step = prev_scene.get('step', 1) + 1
+        score = prev_scene.get('score', 0)
+        answers = prev_scene.get('answers', [])
+        metaphors = prev_scene.get('metaphors', [])
+        math_concepts = prev_scene.get('mathConcepts', [])
+        user_choice = data.get('choice')
+        correct_answer = prev_scene.get('questions', [{}])[0].get('answer')
+        question_prompt = prev_scene.get('questions', [{}])[0].get('prompt')
+        # Track answers
+        if user_choice is not None:
+            answers.append({
+                'question': question_prompt,
+                'your_answer': user_choice,
+                'correct_answer': correct_answer
+            })
+            if user_choice == correct_answer:
+                score += 1
+        # If finished
+        if step > 5:
+            # Build missed questions list
+            wrong = [a for a in answers if a['your_answer'] != a['correct_answer']]
+            if wrong:
+                missed_str = "\n".join([
+                    f"Q: {a['question']}\nYour answer: {a['your_answer']}\nCorrect answer: {a['correct_answer']}" for a in wrong
+                ])
+                advice_chain = advice_prompt | llm | StrOutputParser()
+                advice = advice_chain.invoke({"missed": missed_str})
+            else:
+                advice = "You got all questions correct! Great job!"
+
+            # Generate theoretical summary
+            theory_chain = theory_prompt | llm | StrOutputParser()
+            theory_summary = theory_chain.invoke({
+                "math_topic": math_topic,
+                "metaphors": "\n".join(metaphors)
+            })
+            # Generate principle summary
+            principle_chain = principle_prompt | llm | StrOutputParser()
+            principle_summary = principle_chain.invoke({
+                "math_topic": math_topic,
+                "metaphors": "\n".join(metaphors)
+            })
+
+            return jsonify({
+                'sceneText': advice,
+                'progress': 1.0,
+                'questions': [],
+                'finished': True,
+                'score': score,
+                'step': step,
+                'answers': answers,
+                'metaphors': metaphors,
+                'mathConcepts': math_concepts,
+                'theorySummary': theory_summary,
+                'principleSummary': principle_summary
+            })
+        # Otherwise, generate next scene
+        chain = story_prompt | llm | StrOutputParser()
+        story_json = chain.invoke({
+            "math_topic": math_topic,
+            "story_context": story_context,
+            "character": character,
+            "step": step
+        })
+        try:
+            scene = json.loads(story_json)
+        except Exception:
+            match = re.search(r'({[\s\S]*})', story_json)
+            if match:
+                scene = json.loads(match.group(1))
+            else:
+                logger.error(f"Failed to extract JSON from: {story_json}")
+                return jsonify({'error': 'Failed to parse story from LLM.', 'llm_raw_response': story_json}), 500
+        scene['progress'] = min(1.0, step / 5)
+        scene['score'] = score
+        scene['step'] = step
+        scene['answers'] = answers
+        scene['finished'] = False
+        scene['metaphors'] = metaphors + [scene.get('metaphor', '')]
+        scene['mathConcepts'] = math_concepts + [scene.get('mathConcept', '')]
+        # Remove imageRef from the response
+        if 'imageRef' in scene:
+            del scene['imageRef']
+        return jsonify(scene)
+    except Exception as e:
+        logger.error(f"Error in progress_story: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
-    if llm is None:
-        print("LLM failed to initialize. The Flask app will run but LLM-dependent endpoints will fail.")
-        print("Please ensure your GEMINI_API_KEY is correctly set in api.env and is valid.")
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=True, port=5000) 
