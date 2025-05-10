@@ -6,11 +6,12 @@ from langchain.chat_models import init_chat_model
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from typing import Optional
 
-# USER INFO
-user_name = "un nago guerriero"
-user_context = "mordor del signore degli anelli"
-topic = "teorema di pitagora"
+# Remove hardcoded values
+# user_name = "un nago guerriero"
+# user_context = "mordor del signore degli anelli"
+# topic = "teorema di pitagora"
 
 os.environ["GOOGLE_API_KEY"] = "AIzaSyC1bXxZ4447S7p3RfupwWPjLVEIuLR3Vtg"
 
@@ -22,7 +23,7 @@ class State(TypedDict):
     last_chapter: str
     user_answer: str
     output: str
-    correct_answer: str | None
+    correct_answer: Optional[str]
     score: int
     counter: int
 
@@ -86,34 +87,26 @@ Non includere alcun testo o spiegazione al di fuori del JSON."""
 )
 
 def check_counter(state: State):
-    print("counterqqqqqq")
     # Increment the counter
     new_counter = state["counter"] + 1
-    
     # Return a dictionary with the updated counter
     return {"counter": new_counter}
 
-#INIZIALIZZA
 def start_node(state: State):
-    #print("\n=== NODE 1 ===")
+    # Use values from the state instead of global variables
     initial_state = {
-        "user_name": user_name,
-        "user_context": user_context,
-        "topic": topic,
+        "user_name": state.get("user_name", ""),
+        "user_context": state.get("user_context", ""),
+        "topic": state.get("topic", ""),
         "story": "",
         "last_chapter": "",
         "user_answer": "",
         "score": 0,
         "counter": 0,
     }
-    #print(f"Returning state: {initial_state}")
     return initial_state
 
 def story_start(state: State):
-    #print("\n=== NODE 2 ===")
-    #print(f"Input state: {state}")
-    
-    # Using the updated LangChain syntax instead of deprecated LLMChain
     chain = (
         {"user_name": lambda x: x["user_name"], 
          "user_context": lambda x: x["user_context"], 
@@ -146,41 +139,29 @@ def story_start(state: State):
         Risposta corretta: {story_data["risposta_giusta"]}
         =====================
         """
-        print(formatted_story)
         
         return {
-            "story": story_data["story"],
+            "story": story_data["story"],  # Only return the latest chapter
             "last_chapter": formatted_story,
             "correct_answer": story_data["risposta_giusta"]
         }
         
     except json.JSONDecodeError as e:
-        print(f"JSON Decode Error: {e}")
-        #print(f"Raw response: {response}")
         return {
             "story": "Errore nella generazione della storia",
             "last_chapter": "Errore nella generazione della storia",
             "correct_answer": None
         }
 
-#RICHIESTA RISPOSTA
 def question_1(state: State):
-    #print("\n=== NODE 3 ===")
-    #print(f"Input state: {state}")
-    user_answer = input("Quale risposta scegli? (a, b, o c): ").lower()
-    print(f"User answer: {user_answer}")
+    user_answer = state["user_answer"].lower()
     
     if user_answer == state["correct_answer"]:
-        print("Risposta corretta!")
         state["score"] += 1
     
     return {"user_answer": user_answer}
 
 def follow_up_1(state: State):
-    #print("\n=== NODE 4 ===")
-    #print(f"Input state: {state}")
-    
-    # Using the updated LangChain syntax
     chain = (
         {"user_name": lambda x: x["user_name"], 
          "user_context": lambda x: x["user_context"], 
@@ -215,49 +196,32 @@ c) {story_data['risposte']['c']}
 Risposta corretta: {story_data['risposta_giusta']}
 =======================
 """
-        print(formatted_story)
-        
-        # Ensure we have a string for story concatenation
-        previous_story = str(state["story"]) if state["story"] is not None else ""
-        new_story = str(story_data['story'])
-        
-        final_story = f"{previous_story}\n{new_story}".strip()
         
         return {
-            "story": final_story,
+            "story": story_data['story'],  # Only return the latest chapter
             "last_chapter": formatted_story,
             "output": story_data['story'],
             "correct_answer": story_data['risposta_giusta']
         }
     except json.JSONDecodeError as e:
-        print(f"JSON Decode Error: {e}")
-        print(f"Raw response: {response}")
         error_message = "Errore nella generazione della storia"
-        previous_story = str(state["story"]) if state["story"] is not None else ""
         return {
-            "story": f"{previous_story}\n{error_message}".strip(),
+            "story": error_message,
             "last_chapter": error_message,
             "output": error_message,
             "correct_answer": None
         }
 
-
 def end_story(state: State):
-    #print("\n=== END STORY ===")
-    print(f"Final state: {state}")
-    
-    # Return the final story
-    
-    print("PUNTEGGIO FINALE: ", state["score"])
     return {
         "story": state["story"],
         "last_chapter": state["last_chapter"],
         "output": state["output"]
-        
     }
 
 def should_continue(state: State):
-    return state["counter"] < 3
+    # Only end the story after 3 complete steps (counter starts at 0)
+    return state["counter"] < 2  # This means we'll get 3 steps total (0, 1, 2)
 
 # Add nodes to the graph
 graph_builder.add_node("start_node", start_node)
@@ -282,10 +246,9 @@ graph_builder.add_edge("follow_up_1", "question_1")
 # Compile
 graph = graph_builder.compile()
 
-# Test the graph
-response = graph.invoke({})
-
-print("\n=== STORIA COMPLETA ===")
-print(response["story"])
-print(response["score"])
-print("=====================\n")
+# Remove the test invocation
+# response = graph.invoke({})
+# print("\n=== STORIA COMPLETA ===")
+# print(response["story"])
+# print(response["score"])
+# print("=====================\n")
