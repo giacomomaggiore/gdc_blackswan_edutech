@@ -127,18 +127,13 @@ def story_start(state: State):
     response = response.replace("```", "")
     response = response.replace("json", "")
     
-    #print(f"LLM Response: {response}")
-    
-    
     try:
         # Parse the JSON response
         story_data = json.loads(response)
-        #print(story_data)
-        #print(f"Parsed story data: {story_data}")
         
         # Format the story with the question and answers
         formatted_story = f"""
-        === PRIMO CAPITOLO ===
+        === CAPITOLO {state['counter'] + 1} ===
         {story_data["story"]}
 
         Domanda: {story_data["testo_domanda"]}
@@ -151,7 +146,7 @@ def story_start(state: State):
         Risposta corretta: {story_data["risposta_giusta"]}
         =====================
         """
-        #print(formatted_story)
+        print(formatted_story)
         
         return {
             "story": story_data["story"],
@@ -201,17 +196,13 @@ def follow_up_1(state: State):
     response = response.replace("```", "")
     response = response.replace("json", "")
     
-
-    #print(f"LLM Response: {response}")
-    
     try:
         # Parse the JSON response
         story_data = json.loads(response)
-        #print(f"Parsed story data: {story_data}")
         
         # Format the story with the question and answers
         formatted_story = f"""
-=== SECONDO CAPITOLO ===
+=== CAPITOLO {state['counter'] + 1} ===
 {story_data['story']}
 
 Domanda: {story_data['testo_domanda']}
@@ -229,16 +220,14 @@ Risposta corretta: {story_data['risposta_giusta']}
         # Ensure we have a string for story concatenation
         previous_story = str(state["story"]) if state["story"] is not None else ""
         new_story = str(story_data['story'])
-        print(f"Previous story: {previous_story}")
-        print(f"New story: {new_story}")
         
         final_story = f"{previous_story}\n{new_story}".strip()
-        print(f"Final story: {final_story}")
         
         return {
             "story": final_story,
             "last_chapter": formatted_story,
-            "output": story_data['story']
+            "output": story_data['story'],
+            "correct_answer": story_data['risposta_giusta']
         }
     except json.JSONDecodeError as e:
         print(f"JSON Decode Error: {e}")
@@ -248,7 +237,8 @@ Risposta corretta: {story_data['risposta_giusta']}
         return {
             "story": f"{previous_story}\n{error_message}".strip(),
             "last_chapter": error_message,
-            "output": error_message
+            "output": error_message,
+            "correct_answer": None
         }
 
 
@@ -263,6 +253,7 @@ def end_story(state: State):
         "story": state["story"],
         "last_chapter": state["last_chapter"],
         "output": state["output"]
+        
     }
 
 def should_continue(state: State):
@@ -296,4 +287,5 @@ response = graph.invoke({})
 
 print("\n=== STORIA COMPLETA ===")
 print(response["story"])
+print(response["score"])
 print("=====================\n")
