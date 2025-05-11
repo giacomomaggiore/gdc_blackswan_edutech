@@ -66,12 +66,33 @@ function App() {
   return (
     <div className="min-h-screen bg-[url(/Users/giacomomaggiore/Desktop/CODING/gdc_blackswan_edutech/my-quiz-app/src/assets/bg.png)] bg-w-full bg-cover flex items-center justify-center" 
     >
+      <div className=" bg-white/70 backdrop-blur-sm  absolute inset-0 max-h-fit flex flex-row justify-around
+" >
+    <div className='ml-10 m4-10'>
+    <button className=" text-black rounded-lg py-3 hover:font-bold transition duration-200 transform hover:scale-105" >
+                MISSION
+              </button>
+</div>
+<div className='ml-10 m4-10'>
+    <button className=" text-black rounded-lg py-3 hover:font-bold transition duration-200 transform hover:scale-105" >
+                TEACHER DASHBOARD
+              </button>
+</div>
+<div className='ml-10 m4-10'>
+    <button className=" text-black rounded-lg py-3 hover:font-bold transition duration-200 transform hover:scale-105" >
+                ABOUT US
+              </button>
+</div>
+
+
+       
+      </div>
  <div className="w-full max-w-3xl bg-white/70 backdrop-blur-sm rounded-none md:rounded-2xl shadow-xl p-6 md:p-8 flex flex-col">
 
         {!sessionId && !story ? (
           <div className="space-y-6">
             <div className="text-center">
-              <h1 className="text-4xl md:text-4xl font-extrabold text-indigo-900 mb-2">Math Quest</h1>
+              <h1 className="text-6xl md:text-6xl font-extrabold text-indigo-900 mb-2">Math Quest</h1>
               <p className="text-black">Begin your mathematical adventure</p>
             </div>
             
