@@ -84,8 +84,6 @@ function App() {
               </button>
 </div>
 
-
-       
       </div>
  <div className="w-full max-w-3xl bg-white/70 backdrop-blur-sm rounded-none md:rounded-2xl shadow-xl p-6 md:p-8 flex flex-col">
 
