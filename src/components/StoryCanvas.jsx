@@ -42,30 +42,6 @@ function StoryCanvas({ scene, onChoice }) {
   const [feedback, setFeedback] = useState("");
   const [currentScene, setCurrentScene] = useState(scene);
 
-  // Debug: Skip to end screen
-  const isDev = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
-  const mockEndScene = {
-    finished: true,
-    score: 5,
-    metaphors: [
-      "Solving the puzzle was like finding the right key for a locked door.",
-      "Numbers danced together in perfect balance.",
-      "The problem was a mountain, but you climbed it step by step.",
-      "Each clue was a piece of a bigger picture.",
-      "You built a bridge from question to answer."
-    ],
-    mathConcepts: [
-      "Equations",
-      "Balance",
-      "Problem Solving",
-      "Patterns",
-      "Logical Steps"
-    ],
-    principleSummary: "If you do the same thing to both sides of an equation, it stays true. For example, adding 3 to both sides keeps the balance!",
-    theorySummary: "- Equations: Like a balance scale, both sides must stay equal.\n- Patterns: Help us predict what comes next.\n- Logical Steps: Solving problems one step at a time makes them easier.",
-    sceneText: "Great job! You used math thinking all the way through."
-  };
-
   useEffect(() => {
     setCurrentScene(scene);
     setSelectedOption(null);
@@ -98,16 +74,6 @@ function StoryCanvas({ scene, onChoice }) {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 py-12 px-2">
-      {/* Debug Button */}
-      {isDev && (
-        <button
-          className="fixed top-4 left-4 z-50 bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg shadow-lg"
-          onClick={() => setCurrentScene(mockEndScene)}
-        >
-          Debug: Skip to End Screen
-        </button>
-      )}
-
       {/* Loading Overlay */}
       <AnimatePresence>
         {isSubmitting && (
@@ -127,7 +93,12 @@ function StoryCanvas({ scene, onChoice }) {
               <motion.div
                 className="w-16 h-16 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin mb-4"
                 animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                transition={{ 
+                  duration: 1.5, 
+                  repeat: Infinity, 
+                  ease: "linear",
+                  repeatType: "loop"
+                }}
               />
               <span className="text-white text-lg font-semibold drop-shadow-lg">Thinking...</span>
             </motion.div>

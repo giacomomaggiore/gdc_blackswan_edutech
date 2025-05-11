@@ -177,10 +177,16 @@ function StudentChatbotIntro({ onComplete }) {
             background: [
               'radial-gradient(circle at 20% 30%, #4f46e5 0%, #a21caf 60%, #111827 100%)',
               'radial-gradient(circle at 80% 70%, #a21caf 0%, #4f46e5 60%, #111827 100%)',
-              'radial-gradient(circle at 50% 50%, #4f46e5 0%, #a21caf 60%, #111827 100%)'
+              'radial-gradient(circle at 50% 50%, #4f46e5 0%, #a21caf 60%, #111827 100%)',
+              'radial-gradient(circle at 20% 30%, #4f46e5 0%, #a21caf 60%, #111827 100%)'
             ]
           }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ 
+            duration: 20, 
+            repeat: Infinity, 
+            ease: 'easeInOut',
+            times: [0, 0.33, 0.66, 1]
+          }}
           style={{ width: '100%', height: '100%', position: 'absolute', zIndex: 0 }}
         />
       </motion.div>
@@ -228,7 +234,7 @@ function StudentChatbotIntro({ onComplete }) {
                   type="text"
                   value={answers[currentQuestion]}
                   onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
-                  className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
+                  className="w-full p-4 rounded-lg bg-white/5 focus:border-white/40 focus:outline-none"
                   placeholder="e.g., fractions, probability, patterns in nature..."
                   required
                   variants={fadeInUp}
@@ -238,7 +244,7 @@ function StudentChatbotIntro({ onComplete }) {
                 <motion.textarea
                   value={answers[currentQuestion]}
                   onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
-                  className="w-full p-4 rounded-lg bg-white/5 border border-white/20 focus:border-white/40 focus:outline-none"
+                  className="w-full p-4 rounded-lg bg-white/5 focus:border-white/40 focus:outline-none"
                   rows="4"
                   placeholder="Tell us about yourself..."
                   required

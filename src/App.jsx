@@ -71,13 +71,6 @@ function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Debug Skip Button */}
-            <button
-              onClick={handleDebugSkip}
-              className="mb-6 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded shadow-lg"
-            >
-              Debug: Skip Intro & Start Story
-            </button>
             <StudentChatbotIntro onComplete={handleIntroComplete} />
           </motion.div>
         ) : (
