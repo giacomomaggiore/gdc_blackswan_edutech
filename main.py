@@ -14,59 +14,59 @@ import requests
 
 story_prompt = PromptTemplate(
     input_variables=["user_name", "user_context", "topic"],
-    template="""Inizia a raccontare una storia coinvolgente per bambini o ragazzi in cui il protagonista è {user_name},
-    con ambientazione {user_context}.
-    La storia deve essere scritta in uno stile narrativo vivo e coinvolgente, come se fosse raccontata da un narratore esperto.
+    template="""Start telling an engaging story for children or young people where the protagonist is {user_name},
+    set in {user_context}.
+    The story should be written in a lively and engaging narrative style, as if told by an experienced narrator.
 
-    La storia deve essere lunga 50-100 parole.
+    The story should be 50-100 words long.
 
-    Alla fine del primo capitolo, genera una domanda a risposta multipla sull'argomento {topic},
-    collegata a un ostacolo o problema apparso nel capitolo.
+    At the end of the first chapter, generate a multiple-choice question about the topic {topic},
+    connected to an obstacle or problem that appeared in the chapter.
 
-    La domanda deve avere tre risposte possibili, identificate come "a", "b", "c".
-    Indica anche quale tra le tre è la risposta corretta.
+    The question must have three possible answers, identified as "a", "b", "c".
+    Also indicate which of the three is the correct answer.
 
-    **IMPORTANTE:** L'output deve essere restituito in formato JSON con questa struttura esatta:
+    **IMPORTANT:** The output must be returned in JSON format with this exact structure:
 {{
-    "story": "testo della storia",
-    "testo_domanda": "testo della domanda generata",
+    "story": "story text",
+    "testo_domanda": "generated question text",
     "risposte": {{
-        "a": "testo della risposta a",
-        "b": "testo della risposta b",
-        "c": "testo della risposta c"
+        "a": "answer a text",
+        "b": "answer b text",
+        "c": "answer c text"
     }},
-    "risposta_giusta": "lettera della risposta corretta"
+    "risposta_giusta": "letter of the correct answer"
 }}
 
-Non inserire spiegazioni né testo extra fuori dal JSON."""
+Do not include any explanations or extra text outside the JSON."""
 )
 follow_up_prompt = PromptTemplate(
     input_variables=["user_name", "user_context", "topic", "user_answer"],
-    template="""L'utente ha risposto alla domanda contenuta con {user_answer}".
-Valuta se la risposta è corretta tra le tre opzioni proposte nel capitolo precedente.
+    template="""The user answered the question with {user_answer}".
+Evaluate whether the answer is correct among the three options proposed in the previous chapter.
 
-- Se la risposta è corretta, il personaggio deve superare un ostacolo o avanzare nella storia con successo.
-- Se la risposta è sbagliata, il personaggio incontra una difficoltà o deviazione, ma la storia continua 
-comunque, mantenendo un tono costruttivo e motivante.
+- If the answer is correct, the character should overcome an obstacle or successfully advance in the story.
+- If the answer is wrong, the character encounters a difficulty or deviation, but the story continues
+anyway, maintaining a constructive and motivating tone.
 
-Scrivi il nuovo capitolo della storia (massimo 100 parole) in cui il protagonista è {user_name}, 
-mantenendo lo stesso stile narrativo coinvolgente, l'ambientazione {user_context}, e la coerenza con il capitolo precedente.
-Alla fine del capitolo, poni una nuova domanda a risposta multipla (tre opzioni, identificate come "a", "b", "c"), relativa
-all'argomento {topic}, utile per superare un ostacolo o far progredire l'avventura.
+Write the new chapter of the story (maximum 100 words) in which the protagonist is {user_name},
+keeping the same engaging narrative style, the setting {user_context}, and consistency with the previous chapter.
+At the end of the chapter, ask a new multiple-choice question (three options, identified as "a", "b", "c"), related
+to the topic {topic}, useful for overcoming an obstacle or advancing the adventure.
 
-**IMPORTANTE:** L'output deve essere restituito in formato JSON con questa struttura esatta:
+**IMPORTANT:** The output must be returned in JSON format with this exact structure:
 {{
-"story": "testo del nuovo capitolo della storia (max 100 parole)",
-"testo_domanda": "testo della nuova domanda",
+"story": "text of the new chapter of the story (max 100 words)",
+"testo_domanda": "text of the new question",
 "risposte": {{
-    "a": "testo della risposta a",
-    "b": "testo della risposta b",
-    "c": "testo della risposta c"
+    "a": "text of answer a",
+    "b": "text of answer b",
+    "c": "text of answer c"
 }},
-"risposta_giusta": "lettera della risposta corretta"
+"risposta_giusta": "letter of the correct answer"
 }}
 
-Non includere alcun testo o spiegazione al di fuori del JSON."""
+Do not include any text or explanation outside the JSON."""
 )
 app = FastAPI()
 os.environ["GOOGLE_API_KEY"] = "AIzaSyC1bXxZ4447S7p3RfupwWPjLVEIuLR3Vtg"
@@ -159,11 +159,11 @@ def follow_up(state):
 def wait_for_user(state):
     print("wait_for_user")
     if state.get("user_answer") == state.get("correct_answer"):
-        state["result"] = "Corretto! Proseguiamo con la storia."
-        print("risposta giusta")
+        state["result"] = "Correct! Let's continue with the story."
+        print("correct answer")
     else:
-        state["result"] = "Risposta sbagliata! Ma non preoccuparti, la storia continua."
-        print("risposta sbagliata")  
+        state["result"] = "Wrong answer! But don't worry, the story continues."
+        print("wrong answer")  
           
     state = follow_up(state)
     
@@ -172,7 +172,7 @@ def wait_for_user(state):
 def check_answer(state):
     return state
 
-#controllo counter e finire storia
+#check counter and end story
 def check_continue_or_end(state):
     if state.get("counter", 1) >= 5:
         return "end_story"
@@ -182,11 +182,11 @@ def check_continue_or_end(state):
 def should_continue(state):
     return state["counter"] < 3
 
-#fine storia
+#end story
 def end_story(state):
-    state["result"] = "Fine dell'avventura! Hai completato tutti i capitoli."
+    state["result"] = "End of the adventure! You have completed all chapters."
     state["question"] = None
-    state["story"] = "🎉 Congratulazioni! Il tuo viaggio si conclude qui. Rileggi l'avventura completa qui sotto."
+    state["story"] = "🎉 Congratulations! Your journey ends here. Re-read the complete adventure below."
     return state
 
 # Costruzione del grafo
