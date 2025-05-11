@@ -3,6 +3,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import os
+import re
 
 # You can set your API key here or pass it to the class
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyC1bXxZ4447S7p3RfupwWPjLVEIuLR3Vtg")
@@ -11,8 +12,9 @@ class StoryState(TypedDict):
     user_name: str
     user_context: str
     topic: str
-    story: str
-    last_chapter: str
+    story: str  # Only the narrative part
+    last_chapter: str  # Full last output
+    current_question: str  # Only the question/options for the current chapter
     user_answer: str
     correct_answer: Optional[str]
     score: int
@@ -55,9 +57,10 @@ class StoryAgent:
             template=(
                 "L'utente ha risposto alla domanda contenuta in questo capitolo: {last_chapter} con: '{user_answer}'.\n"
                 "Valuta se la risposta è corretta tra le tre opzioni proposte nel capitolo precedente.\n"
-                "- Se la risposta è corretta, il personaggio deve superare un ostacolo o avanzare nella storia con successo.\n"
-                "- Se la risposta è sbagliata, il personaggio incontra una difficoltà o deviazione, ma la storia continua comunque, mantenendo un tono costruttivo e motivante.\n\n"
-                "Scrivi il nuovo capitolo della storia (massimo 100 parole) in cui il protagonista è {user_name}, mantenendo lo stesso stile narrativo coinvolgente, l'ambientazione {user_context}, e la coerenza con il capitolo precedente.\n"
+                "- Se la risposta è corretta, il personaggio supera l'ostacolo e la storia prosegue positivamente.\n"
+                "- Se la risposta è sbagliata, la storia DEVE prendere una piega diversa e significativa: il personaggio incontra una nuova difficoltà, un imprevisto, oppure la trama si complica in modo creativo e coerente, NON semplicemente ripetendo la stessa situazione.\n"
+                "Mantieni sempre un tono costruttivo e motivante.\n\n"
+                "Scrivi il nuovo capitolo della storia (massimo 100 parole) collegandolo narrativamente al capitolo precedente, senza ripetere la domanda precedente. Il nuovo capitolo deve essere una continuazione fluida e coerente della storia.\n"
                 "Alla fine del capitolo, poni una nuova domanda a risposta multipla (tre opzioni, identificate come 'a', 'b', 'c'), relativa all'argomento {topic}, utile per superare un ostacolo o far progredire l'avventura.\n"
                 "Indica anche quale tra le tre è la risposta corretta.\n\n"
                 "Scrivi tutto in linguaggio naturale, senza alcuna formattazione JSON o codice.\n"
@@ -81,6 +84,7 @@ class StoryAgent:
             "topic": topic,
             "story": "",
             "last_chapter": "",
+            "current_question": "",
             "user_answer": "",
             "correct_answer": None,
             "score": 0,
@@ -98,12 +102,13 @@ class StoryAgent:
         )
         
         response = chain.invoke(initial_state)
-        formatted_story, correct_answer = self._extract_chapter_and_answer(response)
+        narrative, question, correct_answer = self._extract_narrative_and_question(response)
         
         # Update state
         initial_state.update({
-            "story": response.strip(),
-            "last_chapter": formatted_story,
+            "story": narrative.strip(),
+            "last_chapter": response.strip(),
+            "current_question": question.strip(),
             "correct_answer": correct_answer
         })
         
@@ -132,25 +137,33 @@ class StoryAgent:
         
         response = chain.invoke(state)
         state["chapter_number"] += 1
-        formatted_story, correct_answer = self._extract_chapter_and_answer(response)
+        narrative, question, correct_answer = self._extract_narrative_and_question(response)
         
         # Update state with new chapter
         state.update({
-            "story": f"{state['story']}\n{response.strip()}",
-            "last_chapter": formatted_story,
+            "story": f"{state['story']}\n{narrative.strip()}",
+            "last_chapter": response.strip(),
+            "current_question": question.strip(),
             "correct_answer": correct_answer
         })
         
         return state
 
-    def _extract_chapter_and_answer(self, text: str):
+    def _extract_narrative_and_question(self, text: str):
         """
-        Extract the formatted chapter and the correct answer letter from the model's output.
+        Extract the narrative part, the question/options, and the correct answer letter from the model's output.
         """
-        # Try to extract the answer letter from the output
+        # Find where the question starts
+        question_start = re.search(r"Domanda:\s*", text)
         correct_answer = None
-        lines = text.splitlines()
-        for line in lines:
+        if question_start:
+            narrative = text[:question_start.start()].strip()
+            question_and_options = text[question_start.start():].strip()
+        else:
+            narrative = text.strip()
+            question_and_options = ""
+        # Extract correct answer
+        for line in text.splitlines():
             if line.lower().startswith("risposta corretta:"):
                 correct_answer = line.split(":", 1)[-1].strip().lower()
-        return text.strip(), correct_answer 
+        return narrative, question_and_options, correct_answer 
