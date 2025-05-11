@@ -66,7 +66,7 @@ function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      {!sessionId && !story && (<h1>Quiz con LangGraph</h1>)}
+      {!sessionId && !story && (<h1>Math Quest</h1>)}
 
       {!sessionId && !story && (
         <form onSubmit={handleFormSubmit}>
