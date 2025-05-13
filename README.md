@@ -29,23 +29,9 @@ Math Quest is an innovative educational platform that transforms traditional mat
 cd backend
 ```
 
-2. Create and activate a virtual environment:
+2. Run the server:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Start the server:
-```bash
-python main.py
-```
-
-The backend server will run on `http://127.0.0.1:8000`
+uvicorn main:app --reload                                   ```
 
 ### Frontend Setup
 
@@ -96,4 +82,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-Made with ❤️ by the Math Quest Team 
+Made with ❤️ by BlackSwan Team
